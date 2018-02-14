@@ -1,0 +1,28 @@
+####################################################
+# This file is distributed under the               #
+# University of Illinois/NCSA Open Source License. #
+# See LICENSE file in top directory for details.   #
+#                                                  #
+# Copyright (c) 2016 FIGSiM developers             #
+####################################################
+
+#Define how to incorporate OpenCL library (at the moment probably only works for Linux and OS X)
+LIB_OPENCL = -lOpenCL
+UNAME := $(shell uname)
+ifeq ($(UNAME), Darwin)
+	LIB_OPENCL = -framework OpenCL
+endif
+
+ALL_INCLUDES = 
+
+TEST_OPENCL := $(shell $(PREFIX)tests/test_opencl.sh $(CPP) "$(LIB_OPENCL)")
+ifeq ($(TEST_OPENCL), no)
+	TEST_PTHREAD :=$(shell $(PREFIX)tests/test_pthread.sh $(CPP))
+	ALL_INCLUDES = -I$(PREFIX)bulletphysics/
+ifeq ($(TEST_PTHREAD), no)
+	LIB_OPENCL = $(ALL_INCLUDES) -lpthread
+else
+	LIB_OPENCL = $(ALL_INCLUDES) -pthread
+endif
+endif
+

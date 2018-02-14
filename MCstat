@@ -1,0 +1,256 @@
+#!/bin/bash
+####################################################
+# This file is distributed under the               #
+# University of Illinois/NCSA Open Source License. #
+# See LICENSE file in top directory for details.   #
+#                                                  #
+# Copyright (c) 2016 FIGSiM developers             #
+####################################################
+
+#########################################################################
+# Queue status script for Robinson group Monte-Carlo simulation package #
+#########################################################################
+#                                                                       #
+# - first version May 2012, Andreas Tillack                             #
+#                                                                       #
+#########################################################################
+
+TMP=/tmp/MCqueue
+if [ ! -d ${TMP} ]; then
+	mkdir ${TMP}
+	chmod 777 ${TMP} 2>/dev/null
+fi
+IN_FSTAB=$(cat /etc/fstab | grep "$TMP")
+MOUNTED=$(cat /etc/mtab | grep "$TMP")
+if [ "$MOUNTED" == "" -a ! "$IN_FSTAB" == "" ]; then
+	mount $TMP
+fi
+NODE=$(hostname -s)
+
+if [ ! -e "$TMP/MCqueue.$NODE" ]; then
+	touch $TMP/MCqueue.$NODE
+	chmod 664 $TMP/MCqueue.$NODE
+fi
+
+SEC_TO_STRING(){
+	time=$1
+	let days=time/86400
+	let sum=days*86400
+	let hours=(time-sum)/3600
+	let sum=sum+hours*3600
+	let min=(time-sum)/60
+	let sum=sum+min*60
+	let sec=time-sum
+	time_string=""
+	if [ $days -gt 0 ]; then
+		time_string=$time_string$days"."
+		let day_fraction=(time-days*86400)/8640
+		time_string=$time_string$day_fraction"d"
+	else
+		if [ $hours -eq 0 ]; then
+			time_string=$time_string$min":"
+			if [ $sec -le 9 ]; then
+				time_string=$time_string"0"
+			fi
+			time_string=$time_string$sec" min"
+		else
+			time_string=$time_string$hours":"
+			if [ $min -le 9 ]; then
+				time_string=$time_string"0"
+			fi
+			time_string=$time_string$min"h"
+		fi
+	fi
+}
+
+first=0
+# Display currently runnnig (or paused) jobs
+runtable=$TMP/MCstat.$$
+ps -wwe -o user,state,pid,etime,command | grep MCfig | grep -v grep > $runtable
+for datafile in `ls -rt $TMP/MCrun.* 2>/dev/null`; do
+	if [ -e "${datafile}" ]; then
+		if [ $first -eq 0 ]; then
+			echo "Currently running jobs:"
+			echo -e "Job nr\tname\tnode\tconfiguration\trun id\tprogress\trun state\ttime elapsed\testimated time remaining"
+		fi
+		let first=first+1
+		OLDIFS=$IFS
+		IFS="	" read NR USERNAME PROCESS_NODE HOMEDIR CONFIGFILE RUN_NR PID < "${datafile}"
+		IFS=$OLDIFS
+		INFOFILES="${TMP}/Q$NR/${CONFIGFILE##*/}_$RUN_NR"
+		if [ "$PID" == "" ]; then
+			STATE="waiting"
+		else
+			if [ "$PROCESS_NODE" == "$NODE" ]; then
+				# Is the job running or paused?
+				STATE=$(grep " $PID " $runtable | gawk '{print $2}')
+				if [ "$STATE" == "R" ] || [ "$STATE" == "S" ]; then
+					STATE="running"
+				else
+					if [ "$STATE" == "T" ]; then
+						STATE="paused"
+					else
+						STATE="not running"
+					fi
+				fi
+				# Cross it of the list
+				grep -v " $PID " $runtable > $runtable.2
+				mv $runtable.2 $runtable
+			else
+				STATE="N/A"
+			fi
+		fi
+		ETF_string="N/A"
+		ET="N/A"
+		if [ -e "${INFOFILES}.stats" ]; then
+			eval $(gawk "BEGIN{FS=\"=\"}(\$1==\"steps\"){print \"steps=\"\$2}(\$1==\"randsteps\"){print \"randsteps=\"\$2}(\$1==\"start_time\"){print \"start_time=\"\$2}(\$1==\"randsteps_time\"){print \"randsteps_time=\"\$2; exit}" "${INFOFILES}.stats")
+			laststep=$(tail -n 2 "${INFOFILES}.stats" | gawk "BEGIN{FS=\"=\";laststep=0;}(/^[1-9]/){laststep=\$1}END{ print laststep}")
+			lasttime=$(tail -n 2 "${INFOFILES}.stats" | gawk "BEGIN{FS=\"=\";lasttime=0;}(/^[1-9]/){lasttime=\$2}END{ print lasttime}")
+			ETF=-1
+			if [ ${lasttime} -gt 0 ]; then
+				let stepsleft=steps-laststep
+				let delta=laststep-randsteps
+				if [ ${delta} -gt 0 ]; then
+					let timedelta=lasttime-randsteps_time
+				else
+					let delta=laststep
+					let timedelta=lasttime-start_time
+					let timedelta=timedelta+timedelta/5 # add a little to account for the slightly faster calculation times during randomization
+				fi
+				if [ ${delta} -gt 0 ]; then
+					let ETF=(timedelta*stepsleft)/delta
+					SEC_TO_STRING $ETF
+					ETF_string=$time_string
+				fi
+			fi
+			let time_elapsed=lasttime-start_time
+			if [ $time_elapsed -gt 0 ]; then
+				SEC_TO_STRING $time_elapsed
+				ET=$time_string
+			fi
+			# round to nearest integer using essentially floor(#+0.5) (in integer numerics)
+			let percentage=(laststep*100+steps/2)/steps
+		fi
+		echo -e "$NR\t$USERNAME\t$PROCESS_NODE\t$CONFIGFILE\t$RUN_NR\t$laststep/$steps ($percentage%)\t$STATE\t$ET\t$ETF_string"
+	fi
+done
+
+while read USERNAME STATE PID TIME MC MCPARAMS RUNID; do
+	if [ $first -eq 0 ]; then
+		echo "Currently running jobs:"
+		echo -e "Job nr\tname\tnode\tconfiguration\trun id\tprogress\trun state\ttime elapsed\testimated time remaining"
+	fi
+	let first=first+1
+	if [ "$STATE" == "R" ] || [ "$STATE" == "S" ]; then
+		STATE="running"
+	else
+		if [ "$STATE" == "T" ]; then
+			STATE="paused"
+		else
+			STATE="not running"
+		fi
+	fi
+	if [ "$RUNID" == "" ]; then
+		RUNID=0
+	fi
+	HOMEDIR=$(lsof -p $PID | grep cwd)
+	HOMEDIR=${HOMEDIR#"${HOMEDIR%%/*}"}
+	traj=""
+	trajls=""
+	if [ -d "${HOMEDIR}" ]; then
+		traj=$HOMEDIR/$(MCparams "$HOMEDIR/$MCPARAMS" "Simulation Parameters" "FileOut")_$RUNID
+		trajls=$(ls -t "$traj"*.traj 2>/dev/null)
+	fi
+	if [ "$trajls" != "" ]; then
+		traj=$(echo "$trajls" | head -n 1 2>/dev/null)
+		steps=$(MCparams "$HOMEDIR/$MCPARAMS" "Simulation Parameters" steps)
+		laststep=$(head -n 12 "$traj" | grep "last_step" | gawk -F "=" "{print \$2}" | tr -d " ")
+		# round to nearest integer using essentially floor(#+0.5) (in integer numerics)
+		let percentage=(laststep*100+steps/2)/steps
+		td=${TIME%%-*}
+		if [ "$td" == "$TIME" ]; then
+			td=0
+		fi
+		hms=${TIME##*-}
+		h=${hms%%:*}
+		ms=${hms#${hms%%:*}:}
+		s=${hms#${hms%:*}:}
+		if [ "$ms" == "$s" ]; then
+			ms=$h
+			h=0
+		else
+			ms=${ms%%:*}
+		fi
+		td=${td#0}
+		h=${h#0}
+		ms=${ms#0}
+		s=${s#0}
+		time_elapsed=$((td*86400+h*3600+ms*60+s))
+		ET="N/A"
+		if [ $time_elapsed -gt 0 ]; then
+			SEC_TO_STRING $time_elapsed
+			ET=$time_string
+		fi
+		let stepsleft=steps-laststep
+		ETF_string="N/A"
+		if [ "${laststep}" != "" ]; then
+			if [ ${laststep} -gt 0 ]; then
+				let ETF=(time_elapsed*stepsleft)/laststep
+				SEC_TO_STRING $ETF
+				ETF_string=$time_string
+			fi
+		fi
+		echo -e "-\t$USERNAME\t$NODE\t$MCPARAMS\t$PID\t$laststep/$steps ($percentage%)\t$STATE\t$ET\t$ETF_string"
+	else
+		td=${TIME%%-*}
+		if [ "$td" == "$TIME" ]; then
+			td=0
+		fi
+		hms=${TIME##*-}
+		h=${hms%%:*}
+		ms=${hms#${hms%%:*}:}
+		s=${hms#${hms%:*}:}
+		if [ "$ms" == "$s" ]; then
+			ms=$h
+			h=0
+		else
+			ms=${ms%%:*}
+		fi
+		td=${td#0}
+		h=${h#0}
+		ms=${ms#0}
+		s=${s#0}
+		time_elapsed=$((td*86400+h*3600+ms*60+s))
+		ET="N/A"
+		if [ $time_elapsed -gt 0 ]; then
+			SEC_TO_STRING $time_elapsed
+			ET=$time_string
+		fi
+		echo -e "-\t$USERNAME\t$NODE\t$MCPARAMS\t$PID\t-/-\t$STATE\t$ET\t(no further information available)"
+	fi
+done < $runtable
+rm -f $runtable
+
+second=0
+# Display scheduled jobs
+for datafile in `ls -rt $TMP/*_MCwait.* 2>/dev/null`; do
+	if [ -e "${datafile}" ]; then
+		if [ $second -eq 0 ]; then
+			echo "Jobs in queue:"
+			echo -e "Job nr\tuser\tnode\tconfiguration"
+		fi
+		let second=second+1
+		IFS="	" read USERNAME JOBNODE HOMEDIR CONFIGFILE NR RUNNOW < "${datafile}"
+		if [ "$RUNNOW" == "" ]; then
+			echo -e "$NR\t$USERNAME\t$JOBNODE\t$CONFIGFILE\twaiting"
+		else
+			echo -e "$NR\t$USERNAME\t$JOBNODE\t$CONFIGFILE\tstarting"
+		fi
+	fi
+done
+
+if [ $first -eq 0 ] && [ $second -eq 0 ] ; then
+	echo "Currently no jobs in queue."
+	second=1
+fi
+

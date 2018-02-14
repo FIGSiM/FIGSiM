@@ -1,0 +1,20 @@
+#!/bin/bash
+####################################################
+# This file is distributed under the               #
+# University of Illinois/NCSA Open Source License. #
+# See LICENSE file in top directory for details.   #
+#                                                  #
+# Copyright (c) 2016 FIGSiM developers             #
+####################################################
+
+cd ..
+make MCparams
+cd benchmark
+n=0
+while read command configfile basename compiler options
+do
+	./run_one_scale "$compiler" "$options" $n $command $configfile $basename
+	((n++))
+done < scaling_list
+make clean
+

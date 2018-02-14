@@ -1,0 +1,58 @@
+#!/bin/bash
+####################################################
+# This file is distributed under the               #
+# University of Illinois/NCSA Open Source License. #
+# See LICENSE file in top directory for details.   #
+#                                                  #
+# Copyright (c) 2016 FIGSiM developers             #
+####################################################
+
+#######################################################################
+# Submission script for Robinson group Monte-Carlo simulation package #
+#######################################################################
+#                                                                     #
+# - first version May 2012, Andreas Tillack                           #
+#                                                                     #
+#######################################################################
+
+
+if [ "$1" == "" ]; then
+	echo "Syntax: MCsubAT <configuration name without .conf>"
+	exit 1
+fi
+
+if [ ! -e "$1.conf" ]; then
+	echo "ERROR: Configuration file \"$1.conf\" does not exist in current working directory \"$PWD\"."
+	exit 2
+fi
+
+runs=1
+if [ $# -gt 1 ]; then
+	if [[ $2 =~ ^[0-9]+$ ]]; then
+		runs=$2
+		test_bit=`MCparams "$1.conf" "Simulation Parameters" test`
+		if [ "${test_bit}" == "1" ]; then
+			echo "Running multiple simulations, switching off test mode by adding \"test = 0\" to configuration file."
+			echo -e "\n[Simulation Parameters]\ntest = 0\n\n" >> "$1.conf"
+		fi
+	else
+		echo "Second argument (number of runs) needs to be a positive integer."
+		exit 3
+	fi
+fi
+
+i=1
+while [ $i -le $runs ]; do
+	nohup bash MCrun.sh $1 > /dev/null 2>/dev/null < /dev/null &
+	if [ $? -eq 0 ]; then
+		echo "Succesfully submitted job, please use <MCstat> to check to queue status."
+	else
+		echo "Error submitting job."
+	fi
+	if [ $runs -gt 1 ]; then
+		sleep 1
+	fi
+	i=$((i+1))
+done
+
+

@@ -1,0 +1,84 @@
+#!/bin/bash
+####################################################
+# This file is distributed under the               #
+# University of Illinois/NCSA Open Source License. #
+# See LICENSE file in top directory for details.   #
+#                                                  #
+# Copyright (c) 2016 FIGSiM developers             #
+####################################################
+
+#######################################################################
+# Queue info script for Robinson group Monte-Carlo simulation package #
+#######################################################################
+#                                                                     #
+# - first version May 2012, Andreas Tillack                           #
+#                                                                     #
+#######################################################################
+
+
+TMP=/tmp/MCqueue
+if [ ! -d ${TMP} ]; then
+	mkdir ${TMP}
+	chmod 777 ${TMP} 2>/dev/null
+fi
+IN_FSTAB=$(cat /etc/fstab | grep "$TMP")
+MOUNTED=$(cat /etc/mtab | grep "$TMP")
+if [ "$MOUNTED" == "" -a ! "$IN_FSTAB" == "" ]; then
+	mount $TMP
+fi
+NODE=$(uname -n)
+
+if [ ! -e "$TMP/MCqueue.$NODE" ]; then
+	touch $TMP/MCqueue.$NODE
+	chmod 664 $TMP/MCqueue.$NODE
+fi
+
+USER=$(whoami)
+NAME=$(finger $USER  2>/dev/null| grep Name | awk -F "Name: " "{print \$2}")
+
+USERJOBS=0
+OTHERJOBS=0
+
+runtable=$TMP/MCstat.$$
+ps -wwe -o user,comm | grep MCfig > $runtable
+while read USERNAME MC; do
+	if [ "$USERNAME" == "$USER" ]; then
+		let USERJOBS=USERJOBS+1
+	else
+		let OTHERJOBS=OTHERJOBS+1
+	fi
+done < $runtable
+rm $runtable
+
+WAITING=0
+for datafile in `ls -rt $TMP/Q*MCwait.* 2>/dev/null`; do
+	let WAITING=WAITING+1
+done
+let TOTALJOBS=USERJOBS+OTHERJOBS
+if [ $TOTALJOBS -gt 0 ]; then
+	if [ "$NAME" != "" ]; then
+		echo "Hello $NAME!"
+	fi
+	if [ $TOTALJOBS -gt 1 ]; then
+		echo -n "There is a total of $TOTALJOBS Monte Carlo jobs running"
+	else
+		echo -n "There is $TOTALJOBS Monte Carlo job running"
+	fi
+	if [ $USERJOBS -gt 0 ]; then
+		if [ $USERJOBS -gt 1 ]; then
+			echo " ($USERJOBS are yours)."
+		else
+			echo " ($USERJOBS is yours)."
+		fi
+	else
+		echo "."
+	fi
+	if [ $WAITING -gt 0 ]; then
+		if [ $WAITING -gt 1 ]; then
+			echo "Currently, $WAITING jobs are waiting to run."
+		else
+			echo "Currently, $WAITING job is waiting to run."
+		fi
+	fi
+fi
+

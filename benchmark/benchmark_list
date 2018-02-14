@@ -1,0 +1,9 @@
+MCfig	test0.conf	testAT0	g++	-Os
+MCfig	test0.conf	testAT0	g++	-O1
+MCfig	test0.conf	testAT0	g++	-O2
+MCfig	test0.conf	testAT0	g++	-O3
+MCfig	test1.conf	testAT1	g++	-O3
+MCfig	test2.conf	testAT2	g++	-O3
+MCfig	test3.conf	testAT3	g++	-O3
+MCfig	test4.conf	testAT4	g++	-O3
+MCfig	test5.conf	testAT5	g++	-O3

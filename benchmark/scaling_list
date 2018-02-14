@@ -1,0 +1,5 @@
+MCfig	simplesphere_scaling.conf	simplesphere	g++	-march=native -O3 -flto -funroll-loops
+MCfig	simplesphere_fixedcut_scaling.conf	simplesphere_fixedcut	g++	-march=native -O3 -flto -funroll-loops
+MCfig	touch_scaling.conf	touch	g++	-march=native -O3 -flto -funroll-loops
+MCfig	acetonitrile_scaling.conf	acetonitrile	g++	-march=native -O3 -flto -funroll-loops
+MCfig	CLD_scaling.conf	CLD	g++	-march=native -O3 -flto -funroll-loops

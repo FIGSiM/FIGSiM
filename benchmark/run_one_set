@@ -1,0 +1,36 @@
+#!/bin/bash
+####################################################
+# This file is distributed under the               #
+# University of Illinois/NCSA Open Source License. #
+# See LICENSE file in top directory for details.   #
+#                                                  #
+# Copyright (c) 2016 FIGSiM developers             #
+####################################################
+
+# parameters:
+# $1 ... compiler
+# $2 ... compiler options
+# $3 ... number in benchmark list
+# $4 ... command to run
+# $5 ... configuration filename (parameter of command)
+# $6 ... basename of output file
+
+echo '#compiler	options	overall runtime	randomization time' > log$3.dat
+
+nr_runs=8
+basename=$6
+
+echo "CPP = "$1 > Makefile.choices
+echo "CPPFLAGS = "$2 >> Makefile.choices
+make clean
+make
+for((i=0; i<nr_runs; i++))
+do
+	./$4 configs/$5 ${i}
+	echo -n $1"	" >> log$3.dat
+	echo -n $2"	" >> log$3.dat
+	../traj2stat "$basename"_${i}.traj
+	echo -n `grep 'runtime = ' "$basename"_${i}.traj | sed s/'runtime = '//`"	" >> log$3.dat
+	echo `grep 'randtime = ' "$basename"_${i}.traj | sed s/'randtime = '//` >> log$3.dat
+done
+

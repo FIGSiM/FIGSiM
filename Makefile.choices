@@ -1,0 +1,12 @@
+####################################################
+# This file is distributed under the               #
+# University of Illinois/NCSA Open Source License. #
+# See LICENSE file in top directory for details.   #
+#                                                  #
+# Copyright (c) 2016 FIGSiM developers             #
+####################################################
+
+#Define compiler options
+CPP = g++
+CPPFLAGS = -Wall -march=native -O3 -flto
+OPTIMIZE = y

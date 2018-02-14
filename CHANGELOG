@@ -1,0 +1,855 @@
+Beta 16.4
+-fixed bug of wrong neighbor list initialization that prevented proper energy calculation for simulations with no cutoffs (in other words: no production runs were harmed)
+-new tool: <MCbench>
+	- parameters are exactly like the production simulation <MCfig>
+	- used to benchmark potential energy calculation of the entire system (for comparison to MD, and to estimate management overhang for MC moves, etc...)
+		- Note that recalculation of entire system energy by default is twice as fast as the serial Monte Carlo element move, potential recalculation for N elements
+		- The additional speedup comes from better processor pipeline and cache utilization through better calculation and data locality when recalculating the entire system's energy
+-changed traj2dat behavior:
+	- when analyzing entire group, dipole and charge magnitudes of underlying fully-atomistic model are as weights to calculate center
+	- when analyzing individual element from either all-atom or LoD group, the dipole moment used when there is none inside the particular element is the entire group's
+-fixed bug in <MCsubAT> preventing multiple users to correctly schedule jobs
+-[Simulation Parameters] parameters "latticetype" and "loader" now have defaults:
+	- "latticetype" defaults to "1" (simple cubic)
+	- "loader" defaults to "2" (random order placement)
+
+Beta 16.3
+-new feature: added collective moves
+	- still most likely buggy and time-consuming so use with caution (default for the moment is to not use it)
+-got rid of OpenCL portion of code in main MC loop to clean up code and not have to keep two code bases synchronized
+-fixed bug in <traj2x3d> preventing component transparency settings to be applied correctly to ellipsoids
+-new keyword in [Simulation Parameters]: "VmuE_squared = 1" to switch charge/dipole interaction with electric field from -mu*E to -(mu*E)^2/(|mu||E|)
+-added new keywords "transition_LJ_start" and "transition_LJ_end" to specify the starting and end coefficients for AVA's LJ attrative contributions
+-minor overall speedup of 3-5% (with touch typically the larger speedup)
+-moved NpT step outside moves loop again to start implementing new parallelization scheme
+	- contrary to the previous behavior NpT_move_nr now needs to be greater or at least equal to the number of moves per cycle
+-fixed bug of not being able to use ("polarize") keyword - since I haven't use it no harm was done ...
+-new formula for wall LJ potential using proper ellipsoid minimum distance from wall as well as treatment of adjusted width and interaction area
+
+Beta 16.2
+-fixed long-term bug upon initialization of random number generator that prevented it from being completely reset (only fixed in CMCW4096 code *not* in ran2)
+	- although a fix it does break result compatibility compared to older (wrong) code
+-added neighbor lists to speed up large scale calculations and reduce memory footprint
+-new external object data integration (executable contains its own source code) which works on OS X
+-changed symmetry axes (keyword "symmetry_axes = 1" in [Detail: <group name>] section) to use gyration radius for test sphere size which seems more self-consistent (and produces slightly better densities)
+-did preventative maintance: used Valgrind to do a full memory leak check and fixed our bugs ;-)
+-new symmetry center and symmetry center test sphere size used is underlying fully-atomistic group's smallest dimension determined using gyration tensor
+	- test sphere radius can also be user-defined using keyword "rT" in either [Detail: <group name] for LOD definition or [Group: <group name>] for super groups with LOD elements
+-added new keyword "rT" in [Simulation Parameters] to set global default for test sphere radius used in LOD symmetry center and symmetry axes calculations
+	- individual group and LOD rT's override this value
+	- negative values of rT leads to default which is old behavior:
+		- old defaults of one million for symmetry center calculations and ellipsoid gyration radius for symmetry axes are used
+		- also happens in case individual group or LOD rT's are not set
+	- if value is not set in [Simulation Parameters] the default action is to calculate average gyration radius from groups present in simulation system
+-added a bit more variety to the initial RNG seed: divide time by run id + 1 and add run id (previously: only time, so same if started at same time)
+	- benefit: guaranteed to have different random numbers for multiple runs started at same time (as can happen on a very parallel machine)
+-fixed extremely hard to find (i vs i_g) mistake leading to wrong LJ calculations for groups
+-added new parameter "LJ_interaction_area" to [Simulation Parameters]
+	- if true (default is false to stay consistent with old code), adjust ellipsoid Lennard-Jones epsilon based on cross-sectional area of interellipsoid distance vector normal plane with ellipsoids
+-speed up of interaction area code with single ellipsoid (now costs only 5% instead of 20%)
+-speed of epsilon surface map calculations (now costs around 30% instead of 50%)
+-fixed epsilon surface map code to not only stay in one quadrant (atan2 vs. atan)
+-new Lennard-Jones potential adjustment "LJ_adjust_width" in [Simulation Parameters] allows to set width of LJ potential to average width based on fully-atomistic potential
+	- instead of (sigma/r)^n the term used is ((sigma-delta)/(r-delta))^n
+		- with a fixed with off w_a+w_b this translates to ((w_a+w_b)/(r-(sigma-(w_a+w_b)))^n
+	- default is false to stay consistent with old behavior
+	- independent of setting this code is used to determine optimal LJ epsilon
+	- only used in touch LJ modes (4 and 5)
+-new test sphere radius which is now determined by radius of sphere with same surface area compared to ellipsoid
+-fixed bug leading to off LJ energies for non-LJ-epsilon-fitted element types
+-added useful output to summary file again (contains charges, dipoles, and LJ well depth interaction matrix)
+-added new analysis type "alphabetagamma" to <traj2dat>
+-added new keyword "component_texture_is_dipole.<m>" for m-th component definition in [Detail: <group name>] section
+	- allows to specify texture y-axis to be rotate in dipole direction
+	- defaults to "component_show_dipole.<m>" (which itself defaults to false)
+-fixed bug in Vec2Rot function that caused improper rotation when vector was point in the opposite direction of chosen axis
+-new feature:
+	-when file ending is omitted automatically .conf and .traj are tried (saves one to having to type it)
+-fixed bug: factor for internal energy calculation was only used for electrostatics (now also for Lennard-Jones)
+
+Beta 16.1
+-more optimizations, but most importantly: NEW RANDOMIZATION CODE
+	- this does break result compatibility to older code but saves a bit of time and is a bit more logical
+-more code cleanup leading to a modest speed up of around 5% for groups
+-fixed bug which would have only shown up for mixed simulations of individual elements with groups
+-fixed really stupid bug -> 1 atm = 1.01325x10^-5 Pa => 1 atm = 1.01325x10^-6 perg/Angstrom^3
+	- when previous calculation say 0.001 atm they really where 0.1 atm (1 atm -> 100 atm actually)
+-changed behavior for quadrupol_charge_factor (which charge in units of e to use for quadrupole expansion)
+	- new behavior is to use 8 e as default and to not set it to 1 e in case it is specified to be below (still outputs warning though)
+-new [Simulation Parameters] keywords: "ES_cutoff_precision" and "LJ_cutoff_precision" (default: machine epsilon for floats 1.2E-7)
+	- calculates optimal cutoff distances based on given precision
+	- was done previously with machine epsilon for floating point numbers, but not accesible to configuration
+-fixed constant LJ energy offset during randomization for transition method runs
+-raw statistics output now includes cosine averages
+-increase minimum number of charges for quadrupole
+	- now need at least 5 charges present to bother calculating quadrupole (which consists of upto 5 charges)
+-fixed minor bug which hasn't shown up yet: electrostatics energy scaling during transition is now properly applied (has not been used at all so far ...)
+-rewritten traj2dat X3D file output to be compatible with x3dom javascript code
+-rewritten NpT code
+	- is now in seperate function "NpT_step"
+	- gets called every "Npt_move_nr" moves (specified in [Simulation Parameters]) which defaults to the number of individual simulation elements plus the number of group elements randomized per cycle
+	- has two NpT move options: ln V and +/- dV (default: "NpT_lnV_change = 1")
+	- if "NpT_lnV_change = 1", then default "maxdV = 0.01", otherwise "maxdV = 50 Angström"
+	- if "NpT_relative_coords" is set, NpT move involves scaling element coordinates with box (default)
+		- if not set, boundary condition wrapping is used which only is allowed if there actually are PBCs in all directions
+-minor speedup of ~2% for NpT runs by writing separate distances calculation code for energy recalculation routine
+-another touch speedup of around 3.5% (by going into A ellipsoid frame)
+
+Beta 16.0
+-added quadrupole charge expansion code, in [Simulation Parameters] use "quadrupole_charge_factor" (defaults to 1) to decrease quadrupole charge spacing (getting closer to a point quadrupole)
+-switched of specular reflections for ellipsoids which have fully-atomistic model inside them
+-added ability to "traj2dat" to analyze multiple directors for "cosine"-type analysis
+	-now if more than two elements are specified for analysis, the first one is analyzed with all the successive ones
+	-default behavior is to average cosines
+	-the switch "find_max_item" allows to look for largest cosine in element comparison list
+		-"find_max_abs_item" changes behavior to magnitude
+-added keyword to [Analysis] section: "report"
+	- the analysis section with the first occurence of this keyword gets named "<Fileout_Nr>_Analysis_<nr>" rather than "<Fileout_Nr>_Analysis_<nr>" for use in automated report scripts ...
+-added new analysis type to "traj2dat": dihedral
+	- expects four group-internal elements and calculates (surprise!) the dihedral angle
+-fixed multiple "small" errors concerning super groups regarding how many elements are randomized
+	- led to weird bug that LOD super groups sometimes did not get internally randomized
+	- now default behavior is to use "rand_elements" in super group definition also for LOD part
+-fixed minor bug causing major problem for LJ wall calculations for groups (group energy was not reset upon recalculation)
+-added transition method to LJ wall calculations, LJ wall distance is transitioned from simulation box size in x-direction to user-specified LJwall_xm
+-for LJ wall calculations, now automatically switch off periodic boundary condition in x-condition
+-minor cleanup for resume portion of code (now works with transition, NpT, and adjust_internal)
+-overall speed up of around 10%
+	-speed up touch algorithm by using fact that lab frame rotation matrices are symmetric (and verified that results are identical) and some other optimizations
+-fixed minor bug in component analysis code which became really problematic only for ionic systems
+-more touch speed up of around 10% by removing determinant calculation from loop (not needed since normalized out anyway)
+-more overall speed improvement of around 10% by removing Rdist calculation all together and cleaning up touch a bit
+
+Beta 15.1
+-new magic: almost twice as fast :-)
+	- comes at the expense of (N^2-N)*16 Bytes of memory
+		- N is number of individual elements + number of groups in simulation volume
+		- example: a simulation of 1,000 molecules will take up (1000^2-1000)*16 Bytes or roughly 16 MB
+	- works with ionic groups and produces the same results as before
+-added [group] keyword "group_dipole_color"
+	- is a 3-vector which defines the group's dipole color (if show_just_dipole is set)
+	- default (if unspecified) is average color of all group elements
+-in order to mimic solvent evaporation, added keyword "transition" to [Simulation Parameters] section, if set to 1:
+	- system will transition from initial volume specified with "transition_start_volume" (default: system initial placement volume) to target volume "transition_target_volume" (default: user target volume)
+	- LJ dispersion will be transitioned between off and on at the same time
+	- can control transition start with "transition_start" and number of cycles for transition with "transition_cycles"
+-fixed minor that led to a wrongly initialized random number generator upon resume for the (new) CMCW4096 based random numbers
+-now output source code of the actual compiled code running the simulation alongside trajectory file
+	- uses basename of trajectory file (everything except .traj ending)
+	- can be switched off with keyword "output_code" in [Simulation Parameters]
+-fixed really stupid error: did not update mu-E interaction energy properly (what a commented out code line can do - and I was wondering why stuff didn't seem to pole well)
+-distance calculation optimization leads to ~2% calculation time reduction - not much, but it took less time to implement than it saves for the average simulation ;-)
+-touched time code - now all output is in trajectory file (still only works for individual elements and not groups)
+-finally fixed wrong cosine values when using components for order calculation output (in trajectory file used by traj2stat)
+-updated "MCsubAT" submission script (needs MCrun.sh in runtime path) and "MCrun.sh"
+	- MCsubAT now allows a second parameter to be passed which specifies the number of runs, e.g. MCsubAT test 2 would schedule test.conf twice
+		- if more than one run are requested MCsubAT automatically makes sure that the simulations test mode (fixed initial RNG seed) is off
+		- if test mode is on, MCsubAT appends the configuration file so it is off
+-dyneps_average_cycles now defaults to zero (no averaging)
+-allow group charges to be scaled through keyword "ES_scale" in [Group] sections
+-another bugfix related to Efield rotation in analysis (this time it was applied although no poling field was present - sigh)
+-new keyword "internal_transparency.<LOD nr>" setting transparency for underlying fully-atomistic model
+-added new feature, keyword "show_internal_bonds", that displays bonds for the underlying fully-atomistic model
+-new standard feature for x3d output: specular reflections!
+	- amazing how it makes the output look much more professional ..
+-added automatic analysis tools analyze.sh and compile.sh (needs statistics.awk in same folder)
+	- analyze.sh runs analyses (traj2stat and traj2dat) over all trajectory files <datafile>.traj in a given folder
+		- if a particular <datafile>.stat file exists it counts an analysis as already run
+		- after analysis has been run <datafile>.traj is compressed using pbzip2 (needs to be installed ...)
+	- compile.sh compiles the results in a neat table once analyze.sh has finished succesfully
+		- simulations with less than 0.5 g/cm^3 and a dielectric constant less than n^2 (as specified in the configuration file) are ignored
+-speed up of <MCparams> when "want_traj" is specified by not combining sections (which is the behavior otherwise)
+-fixed bug leading <traj2x3d> to segfault when super groups are used
+-introduced keyword "dipole_charge" in [Simulation Parameters] to manually set charge for dipole expansion in plots
+-big change in how component dipoles are calculated:
+	- non-neutral components (aka almost all of them) dipole moments are now referenced to their respective group's charge center
+		- the charge center is the charge-magnitude weighted average position of all fully-atomistic charges inside a group
+	- old behavior was to just reference to the respective component center
+	- huge benefit of new method: dipoles of components add up exactly to group dipole hence giving more realistic dipole vectors
+	- good news for "well-behaved" components (not broken up across large charges): no real change in dipole vector
+-sped up touch by around 8%
+-minor modifications (in strategic places) lead to another ~3% speed up
+-fixed bug which resulted in segfault when building a super group with no charges in the underlying fully-atomistic structure
+-changed default behavior when LOD model configuration (<fileout>.conf.dat) exists to not read in epsilons and epsilon textures unless "match_epsilon" has been set to 1
+
+Beta 15.0
+-introduced new standard behavior for group randomizations:
+	- now per MC cycle on average randomize a group sqrt(N_g = # of movable elements in thisgroup) times (previously N_g)
+	- speeds up calculations by a factor of sqrt(N_g) while not significantly changing statistics (stepsizes adjustes accordingly)
+	- behavior can be controlled with "nr_rand_per_cycle" setting in group definition and "nr_rand_per_cycle.<LOD level #>" for LOD definitions
+	- for LOD group in a supergroup use "nr_rand_per_cycle_LOD" in supergroup definition
+-new switches for supergroup definition: "match_epsilon", "match_volume", and "use_epsilon_texture"
+	- same behavior for supergroup LODs and for normal LODs
+-now output randomization time and runtime in last statistics block in all trajectory files
+-introduce new switch "cut_internal" which controls potential truncation separately for group internal calculations (defaults to value "cut" is set to - which itself defaults to true)
+-cleaned up eigenvalue/eigenvector calculations a little to prevent Q-tensor calculations to give NaNs
+-fixed minor error that charge interactions were not calculated upon resume
+-fixed error miscalculating self interaction ES energy in calc_charge_interaction() by applying 1/n^2 twice
+-implemented new reaction field (see docs folder)
+-when reaction field epsilon is dynamically updated (dyneps=1) switch on group_dipole for ionic groups
+	- calculates total dipole moment from ionic groups' dipole moment in reference to respective group center
+	- prevents total dipole calculation to artificially grow with system volume (average distance between ions increases)
+-fixed bug ending up with wrong charge in group element if group element is derived from archetype which had charges to begin with
+-added ability for traj2x3d to have partial animations through third command line parameter, examples:
+	- Animation from step 10000 to end of file: traj2x3d test.traj all 10000 *or* traj2x3d test.traj 10000 all
+	- Animation from step 10000 to step 12000: traj2x3d test.traj 10000 12000
+-work done on update_eps function (updates reaction field epsilon when dyneps=1)
+	- generalized to use E-field in arbitrary directions (before limited to z-direction)
+	- for no applied poling electric field use var(M) obtained as a running calculation over the last "grfreq" cycles (defaults to 100 cycles)
+	- with electric field use average M obtained as a running average over the last "grfreq" cycles
+-lessons learned from ionic liquid dielectrics:
+	- group_dipole on is wrong in-simulation
+	- need to either use conductive boundary conditions (epsilon=1E6 aka infinity) or self-consistent one
+	- self-consistent epsilon_RF is *not* experimental dielectric for ionic systems since conductivity is implicit in epsilon_RF but not in experimental values
+		- to obtain experimental dielectric one can use trajectory and recalculate <M> using (ionic) group dipole approach (using in-simulation fails b/c reaction field would end up to small)
+-traj2x3d can now plot component dipoles for non-animated and animated scenes
+	- keyword "component_show_dipole.<component nr> = 1"
+	- new group keyword "show_just_dipoles" can be used if only the dipole of the whole group (or of selected components, see above)
+-added keyword "symmetry_axes" to [Detail] section for LOD group definition
+	- if enabled and "match_volume" is disabled, calculates ellipsoid semi-axes from average fully-atomistic boundary (default: true)
+-added keyword "rmax" to [Analysis] section to be able to specify r_max
+-improved gammaalpha analysis type:
+	- fixed bug which gave wrong average
+	- added standard deviation to output
+	- data points with no data (where the vectors didn't go) now have no <cos(gamma)> and std.dev. in output
+-added new analysis type (experimental right now): spatial distribution function (sdf)
+	- will plot most likely position of partner in x3d file color/transparency-coded with relative probability
+-touch now allows individual scaling of ellipsoid sizes (delta in Element data type)
+	- implementation only adds two multiplications to overall algorithm (which is next to nothing compared to the tens to hundreds of multiplications involved)
+-added new VdW potential type 6 "modulated touch": V_LJ=4eps*[(sigma/r)^(12+gamma)-(sigma/r)^6]
+	- adds random change of an elements gamma value (between -4 and 12)
+-added keywords "dyneps_varm" and "dyneps_average_cycles"
+	- "dyneps_varm": if true, var(M) instead of M^2 is used in reaction field epsilon calculations when no poling field is defined (default: false)
+	- "dyneps_average_cycles": number of cycles over which to average M, M^2, or calculate var(M) over for reaction field epsilon calculations (see also dyneps_varm), uses grfreq as default
+
+Beta 14.4
+-fixed bug: upon calculation of 1/sqrt(n) for group stepsize factor did not check if n=0 leading to a lot of NaNs in the output (even worse: bug has been around since Oct 16 version)
+-rounding charges of groups to nearest integer now - no more complaining about non-neutral groups (it is my understanding that the reaction field *should* work fine with leftover charges the way it's implemented)
+-more bugfixes for scheduler, should fix multiple manager dilemma
+-added switch "randsteps_nointernal" to [Simulation Parameters] section
+	- if true, groups are not internally randomized (aka stiff) during randomization
+-fixed "log2mol2.awk" script to properly handle coordinates like "-1.234567-2.345678"
+-added new simulation parameter: "adjust_internal"
+	- when set to 1 (default is 0) and simulation is in NpT mode then group-internal LJ and ES energies are adjusted through parameter lambda
+		- lambda is calculated from gaussian transition between 1.0 (no adjustment) to 0.0 (no contribution)
+		- lambda = 1.0 when the system volume is smaller or equal to the target volume (set through "boxlength" vector parameter)
+		- lambda = 0.0 when the system volume is ten times larger then the target volume
+		- otherwise, lambda = exp(-0.5*((V-V_target)/sigma)^2) with sigma = 9*V_target/sqrt(-2.0*ln(machine EPS))
+	- this new parameter simulates the behavior of chromophores as they slowly leave the solvent (stiffer the more volume)
+-for "traj2mol2" utility added header information to mol2 output files (step, box volume, periodic boundary condition, creation time)
+-added ability to specify components for super groups in "[Group: <super group name>]" section
+	- need to specify numbers with respect to fully-atomistic model for super group (use traj2mol2 to output model)
+-fixed bug in "traj2dat" sometimes using the wrong volume for g(r) and g_mu(r) normalization
+-added element number scaling calculations to benchmarks (use "run_scaling" script to run and "scaling.plt" to plot results)
+	- calculations will take a long time (on i5-3570@3.8 GHz approximately 3 days)
+-added chain scaling benchmark to test internal scaling when adding monomer units
+	- also uses "scaling.plt" to plot results
+-improved touch code speed by around 8%-10% while maintaining precision
+-now output step timing with respect to N^2 instead of N^3 (turns out scaling is mostly N^2)
+-minor code update: use function pointers now instead of switch statement for Lennard-Jones potentials (performance neutral)
+-more code speedups ranging from 2% (LOD group, full touch) to 16% (simple spheres)
+-introduced test "testfmm" which will serve as the testbed for the fast multipole method development, currently computes direct sums (similar to real code)
+-fixed bug preventing charge rounding to work sometimes
+-fixed LOD calculation numerical differences between different architectures and different compiler optimizations
+
+Beta 14.3
+-implemented "OneStep" function (calculates Lennard-Jones and electrostatics potential energy) in OpenCL
+	- compiles without errors and gives same results (within machine epsilon) compared to original code ;-)
+		- code is currently limited to non-group ellipsoids with no offcenter dipoles
+	- code is split into calculation of distances, Lennard-Jones, and electrostatic potential energies
+	- test code is implemented for using in actual calculation (in evolve_system) accesible through "TEST_OPENCL" define in Config.h
+		- currently, memory transfer latency prohibits performance gains from materializing for systems with less than 10,000 elements ...
+			- single-threaded one step for ~1000 elements takes around 200 ms on my home-computer's CPU (3 GHz, 1st gen. Intel Core2Quad)
+			- using OpenCL on CPU (or pthreads MiniCL) takes around 600 ms (combined CPU time across all four cores)
+				- while this sounds like a net 1.5x speed-up this is not the case since processor idle while waiting for
+				  memory pushes CPU utilization down to around 50% resulting in 1.5x increase in computation time
+			- situation is even worse for graphis card OpenCL
+				- PCIe latency and bandwidth are lower than direct CPU-RAM performance
+				- too many if constructs slowing down kernels on non-general purpose processors:
+					- on streaming processors conditionals are implemented by calculating both branches concurrently, reducing
+					  theoretical performance twofold (it's slightly less bad in reality, but branching should be avoided if possible)
+					- newer generation graphics cards (>=AMD HD79xx) have rudimentary branch prediction, but code still is far
+					  from optimal
+		- further work is needed to have a decent implementation in OpenCL, two possible approaches:
+			- leave as is and extend to groups as well and use it for systems >> 10,000 elements
+				- more of a cop-out than a solution, also does not utilize graphics card very well
+			- extend code to update whole cycle instead of just one step to avoid memory bottleneck by lowering memory access frequency
+				- this is favorable but requires more work (a.k.a it will have to wait for the next season of holidays ...)
+-implemented ability to use existing poling field as reference direction for analyses using <traj2dat> type is "Efield"
+	- works in conjunction with "rotate_Efield_steps" option in [Simulation Parameters] which sets after how many steps the external electric field is
+	  rotated in the direction of the total dipole moment
+	- in case there is no electric field, it defaults to the z-axis
+-rewritten queue manager to allow for jobs migrating across multiple nodes
+-extended <MCparams> tool to output files used
+	- in order to access feature set the parameter name to "files_used", the section name can be set to anything (i.e. "")
+-new option for resuming trajectory files: "restart_volume"
+	- if set to 1 volume of loaded state will be grown to bounding sphere limited volume initially set
+-fixed bug that led to no randomization at all for groups with no randomizable elements (responsible for JSSTH reruns not working)
+-bugfixes involving configuration/trajectory file reading
+	- large (>1 million cycles) trajectory files now behave as expected
+	- analysis element names with "-" in the name do not exit after triggering the error "Error evaluating calculation"
+-added "rot_notrans" and "stillmembers" to options for group definition to be able to immobilize ("stillmembers=1") or only allow rotation ("rot_notrans=1") for whole group
+-fixed <traj2stat> acceptance rate calculation (was not calculating the number of tries correctly for groups, now uses trajectory file field "nr_tries")
+-fixed compile errors on gcc >= 4.6.3 (Who knew that "-lOpenCL" needs to be provided *after* the object compilation and not before?)
+-added new option "stepsize_average" in [Simulation Parameters]
+	- with it set larger than zero specifies over how many steps average move sizes shall be used to tweak the move sizes (uses running average over however many specified steps)
+	- works for both individual elements and groups
+-added new options "LJwall_*" defining parameters for a confining (aka "wall") potential of the type a*(x/xm)^n-b*(x/xm)^m (hence the Lennard Jones "LJ" part of the name)
+	- default (if nothing is specified) is to use no LJ wall
+	- if only "LJwall_a" is specified "LJwall_b" is set to the same value
+	- default n and m are 12 and 6, respectively
+	- default xm value is 3/4 of half the boxlength in x direction
+-implemenented optimized cycle scheduling: group elements with fixed bonds are now not randomized (linearly reducing execution time while keeping statistics similar)
+-fixed total dipole autocorrelation calculation (now uses R(k) = 1/((n-k)*var(x))*sum_i=1^(n-k)(x_i-x_avg)(x_(i+k)-x_avg))
+-added scaling of potential energies with parameter "energy_scale" in [Simulation Parameters]
+	- default is "energy_scale = (1,1,1,1)" meaning no scaling by default
+	- implementation should be performance neutral (no runtime cost) because preexisting constants are employed for this internally
+	- IMPORTANT NOTES:
+		- adjusts configuration->in2 and configuration->r which are currently used exclusively for scaling VES and VLJ, respectively
+		- also scales LJ_wall potential as part of the VG potential sum
+-added ability to use system total dipole moment as reference direction (type "totalM")
+-fixed bug in "traj2dat" that prevented multiple simple element types to be used in analysis
+-added super group ability to group definitions
+	- super group is created when group's "element" definition contains other groups' names
+	- in order to specify which element out of added group is connected, parameter "group_connection.<A>-<B> = (<connection_site_A>,<connection_site_B>)" needs to be defined
+		- connection sites can either be specified as element number of respective group (connection_site_A/B > 0), or
+		- refer to a pre-defined "connection_sites" in a group's definition (connection_site_A/B < 0)
+		- example:
+			- "elements = CH4, HCN"
+			- "group_connection.1-2 = (-1,1)"
+			- this defines a connection between groups 1 and 2 (CH4 and HCN) at connection site 1 of CH4 and element 1 (H) of HCN
+			- if a connection site element has only one link to their respective group it will be omitted in the resulting super group
+				- in the example, the resulting super group would be CH3-CN (acetonitrile)
+	- works with LOD groups as well
+		- when an LOD group is added to the super group the super group definition is automatically enhanced by one LOD level
+		- all further LOD groups added are put into same LOD level
+		- in other words: there a maximum of *one* LOD level for a super group
+-fixed total dipole moment autorcorrelation (again) using more general relation R(k)=1/(n-k)*sqrt(var(x_i)*var(x_k))*sum_i=1^N-k(x_i-xbar_i)(x_(i+k)-xbar_(i+k))
+-new option "add_start_LOD" for super groups:
+	- controls the import of groups when the base name is used as either a group's start LOD level (if greater than 0) or as the base level, default is 1
+	- if user specifies a specific LOD level this will be used regardless
+-added ability to define charge reduction parameter for each LOD group's ellipsoids
+	- instead of "reduce_electrostatics.<LOD level>" accepting one number it now accepts as many as there are ellipsoids
+		- if there are less it the others are by default set to -1 (keep original charges)
+		- if more the additional ones are ignored
+		- when one parameter is given it is applied to all ellipsoids
+-updated scheduler code to be a little more robust against network failure and smarter upon restart
+-fixed "traj2dat" behavior to now read and use component definitions for fully-atomistic groups as well
+-implemented new interaction potential "spring" and "chainspring"
+	- "spring" implements Hook's law type springs for a bond stretch and for the angle difference on each side of the bond with respect to the original bond direction (set automatically upon configuration read in)
+		- equation: V = k_0*(l-l_0)^2 + k_1*theta_diff_1^2 + k_2*theta_diff_2^2
+		- parameters: k_0, l_0 ... spring constant (perg/Ang^2) and optimal bond length (Ang)
+		              k_1, k_2 ... spring constants (perg/rad^2) for bend angle with respect to original bond orientation
+	- "chainspring" replaces the stretch portion of "spring" with a potential more realistic for carbon chains
+		- equation: V = exp((l_a-l)/a) + exp((l-l_b)/b) + m*(l-l_a) + V_0 + k_1*theta_diff_1^2 + k_2*theta_diff_2^2
+			- NOTE:
+				- technically m*(l-l_a) + V_0 could be reduced to either m*l+d or even m*l since constant offsets are not important for the Metropolis conditional
+				- it's left in there so absolut energy magnitudes are preserved and b/c it only costs one addition in the implementation
+		- parameters: b, l_b ... "half-length" and position (Ang) of potential rising slope (close to chain contour length)
+		              k_1, k_2 ... spring constants (perg/rad^2) for bend angle with respect to original bond orientation
+		              a, l_a ... "half-length" and position (Ang) of initial falling slope (close to bond root)
+		              m, V_0 ... slope (perg/Ang) and energy shift (perg) of bottom portion of bondlength potential well
+		- parameters for bondlength portion can be obtained from potential of mean force analysis of g(r) through fit with "histogram.plt"
+		- if last three parameters are omitted default values (a=0.5 Ang, l_a=1.65 Ang, m=0, V_0=0) are used
+-implemented fallback direction for "traj2dat" element analysis
+	- if element (single element or in group) has no net dipole moment the elements current z-direction is used
+-added ability to add potentials to super groups (only two-body potentials for LOD versions allowed, see below)
+-new switch for [Details: <groupname>] section defining LOD groups: "keep_original_potentials.<LOD level number>"
+	- if set to 1 original potentials from base group are transcribed to LOD group
+	- currently limited to two-partner potentials (stretch, spring, chainspring)
+	- others to follow soon (it will even be possible to keep OPLS-AA potentials this way)
+-changed behavior to only complain/bailout on non-charge-neutral groups when reaction field is in use
+-set number of elements per group to be randomized to zero for rigid groups (as per static_links definition)
+-for "traj2stat" moved total dipole moment autocorrelation calculation and output to end of calculation (it ends up in a separate file anyway)
+-bugfix in "traj2dat" for "distances" correlation
+-updates to "histogram.plt" and "statistics.plt" Gnuplot scripts for data analysis
+	- "histogram.plt" now offers a switch to fit a potential of mean force model (see chainspring potential)
+	- "statistics.plt" now also plots a log-linear plot of the volume progression
+-changed behavior of NpT Metropolis step:
+	- electrostatics cutoff distance is now adjusted upon acceptance of a volume move
+	- ES cutoff is calculated as EScut = user specified cutoff * (volume/user specified volume)^(1/3)
+	- energies are then recalculated in order to not introduce energy offsets
+
+Beta 14.2
+-new addition: scheduling queue for MCfig
+	- needs MCrun.sh, MCsubAT, MCstat, and MCqueueInfo accesible from, i.e. /usr/local
+	- edit MCrun.sh for maximum number of simultaneous jobs (default: 8)
+	- use "MCsubAT <configfilename witouth .conf>" for submitting a job
+	- MCstat shows a status of all running MCfig jobs (scheduled, running, and manually operated)
+	- MCqueueInfo can be used in /etc/profile(.local) to present every user with the current number of jobs upon login
+-new tool: <MCparams>
+	- tool to extract parameters from configuration file (can also use trajectory file) which is useful for external scripts wanting
+	  to access parameters as used in a particular simulation
+	- requires three arguments: (1) the configuration file, (2) the section name, and (3) the parameter name
+		- example: MCparams acetonitrile.conf "Simulation Parameters" "randsteps"
+-changed definition for rotating group elements ("rotation.<element nr>") from roll, yaw, pitch angles to more general rotation axis vector and angle
+-now outputting LOD group model when running <fit2lod>
+-new option for elements: "texture_is_dipole" (default: 1)
+	- if true, specified texture is rotated so that top part of texture represents positive direction of element's dipole
+	- has no effect on epsilon textures (since they specificly represent the underlying structure)
+-new option for group definitions: "bond_order" to specify the bond order
+	- must follow the exact definition (partioning) of "connectivity", example (acetonitrile.conf):
+		- bond order definition for "connectivity = {2,3,4,5|1|1|1|1,6|5}" must look similar:
+			- "bond_order = {1,1,1,1|1|1|1|1,3|3}"
+		- in the identical reduced case "connectivity = {2,3,4,5||||6|}" the equivalent bond order is:
+			- "bond_order = {1,1,1,1||||3|}"
+	- the bond order is automatically preserved upon mol2 import
+-new tool: <traj2mol2>
+	- as the name implies output a trajectory file system state to a mol2 file
+	- because of mol2's restrictions (no ellipsoids, only one charge and no dipole per element) this tool will only work for
+	  a system which has an atomistic underlayer (meaning, LOD groups of fully-atomistic groups work)
+	- original atom types (e.g. from fully-atomistic model imported through mol2) are preserved
+	- links are also exported, bond order is obtained as follows:
+		- if the original group was specified through a mol2 file the original bond order is preserved
+		- through the parameter "bond_order" which needs to follow the exact same definition as "connectivity" in the
+		  configuration files group definitions
+-new script: <log2mol2.awk>
+	- usage: gawk -f log2mol2.awk -v "Hsummed=<0/1>; average_bo=<0/1>" <Gaussian .log file> > <mol2 filename>
+	- converts Gaussian output file with CHELPG charges into mol2 file
+	- calculates bond order from natural bond order analysis (pop=NBO) if present, otherwise bondorders are set to 1
+	- Hsummed: if 1, use ESP charges with H summed into connected heavy atom (default: 0)
+	- average_bo:
+		- if 1:
+			- calculate average bond order from same bonds on involved atoms
+			- bond order is rounded to nearest half integer and aromatic type is substituted for b.o.=1.5
+		- if 0 (default):
+			- bond order is calculated from nr of 1/2*(bonding - antibonding electrons of that bond)
+			- bond order is rounded to nearest integer (good for visualization, because it chooses *one* Kekule structure)
+-"reduce_electrostatics" parameter can now be a floating point for negative values (used for scaling original charges <-1)
+-charges are now neutralized per LOD ellipsoid when scaling charge distances
+	- this only happens when there is more than one ellipsoid in the LOD group
+	- an additional dipole per ellipsoid may be created as well
+-new [Simulation Parameters] options:
+	- "rand_Efield": if true, external field interaction is calculated during randomization
+	- "rotate_Efield_steps": number of steps after which to rotate system so total dipole moment direction matches electric field (do nothing if zero)
+-LOD algorithm now properly assigns back links for trivial loops (ellipsoids with two or more links to same other ellipsoid)
+-ring detection algorithm now properly detects trivial loops
+-changed group rotation to be around group center instead of element center which was randomly grabbed by evolve_step
+	- increases acceptance rates slightly
+-calculate zero crossing for symmetry-ellipsoid dimension from full LJ even when user specifies no dispersion (without dispersion there is no zero crossing)
+-set up slightly more general framework for OpenCL code inclusion
+	- allows for inclusion of different code depending on the including program part (reduces runtime compile times)
+	- code is now also included in online documentation
+-updated MiniCL code to bullet-2.80 revision 2531
+-group randomization now is around element which contains group center
+-fixed bug with random loader which waited infinitely to create n elements even though they already were created in groups
+
+Beta 14.1
+-invented time :-)
+	- currently can be used with single elements only
+	- switch is "time = 1" in [Simulation Parameters]
+	- needs new random number generator (see below for Beta 12.0)
+-added ability to maintain dipole moment while moving charges closer together for LOD ellipsoids
+	- controlled through negative parameter "reduce_electrostatics", example "reduce_electrostatistics=-2":
+		- distances between charges and LOD ellipsoid center are halfed and charges multiplied by two
+		- LOD code will only warn user if this is attempted in multi-ellipsoidal system (then this option changes overall dipole moment)
+-fixed weird charge behavior (dielectric constant of acetonitrile off when charges were used)
+	- turned out to be boundary conditions which sometimes resulted in breakage of molecular dipole moments (effectively reversing and magnifying them)
+	- same fix applies to molecules (individual parts need not to be broken up at boundaries)
+-added density calculations to statistics and general output in case mass is defined for every element in the system
+-added Q-tensor to analysis types for <traj2dat>, access through "type={Q}"
+	- Q-tensor calculations allow for any number of dipole items to be used, e.g. "elements = {chiral-right,chiral-left}"
+	- user can specify relative weights for each of these items through, e.g. "weights = {1,1}"
+-<traj2dat> now treats each [Analysis] section individually (even if they have the same section names)
+	- previous behaviour was to merge similar named sections (which is still the default for every other section)
+-fixed ring detection algorithm to work with more complex superrings (ringtest4, JSSTH1)
+-speed improvements for group calculations:
+	-minor speed improvement by only recalculating internal energies if internal structure is changed
+	-some more by storing electrostatic, van der Waals, and group energies with each group and update upon change
+	-overall calculation savings is 75% of internal group energy calculation
+		-for currently "normal" systems this translates to around 5-10% reduced calculation time
+-individual links can now be made static (neither bond stretching, bending, or rotating is allowed)
+	- in group definition keyword "static_links" followed by pairs of element numbers whithin this group
+	- is automatically transferred to LOD groups as well
+
+Beta 12.0
+-flush output buffer more often so logfile pipe gets updated more frequently
+-added new setup tool <fit2lod>
+	- Command line utility with two arguments, (1) the configuration file, and, optionally, (2) the group name
+		- Usage example: fit2lod testconfigs/benzene-LOD.conf Benzene
+	- stems from work on Lennard-Jones epsilon code (see documentation)
+	- makes use of OpenCL if library present, otherwise uses pthreads
+-can now use LJ-epsilon texture in LJ calculations
+	- in order to work <fit2lod> needs to run over configuration
+	  and "use_epsilon_texture.<LOD#" parameter in [Detail: <group name] needs to on
+-added new way of finding optimum (a.k.a. most symmetric) LOD ellipsoid center
+	- previous methods are geometric center and weighted by sqrt(LJ epsilon) center
+-can now use fully atomistic potential zero-crossing to define semi-axes (if volume_match is off)
+-calculate simulation time per step from kinetic energy and displacement (is outputted in ps in trajectory file)
+	- at the moment not very useful, but will be used for hybrid MC-MD approach
+-now by default uses new random number generator CMWC4096 (see G. Marsaglia, JMASM May 2003, Vol 2, No 1, 2-13)
+	- underlying integer range is from 0..2^32-1 (previously: 2^31-85)
+	- period is about 10^39400 (previously: ~2.3x10^18)
+	- is approximately 30% faster than previously used ran2
+	- old code can be generated with compiler define "#USE_CMWC4096" in Config.h commented out
+-implemented normal distributed random number generator
+	- based on CMWC4096
+	- numbers are centered around 0 with sigma 1
+	- two versions specified, one with complete (ran_n), the other without (ran_n2)
+-renamed traj2corr to traj2dat because tool not only calculates correlations but also other forms of analysis (Q-tensor coming soon)
+	- output is ".dat" files in any case, so name is more logical now as well
+
+Beta 11.0
+-added analysis tool <traj2stat>
+	- Command line utility with three arguments, (1) the trajectory file, and, optionally, (2) the starting step, (3) the ending step
+		- Usage example: traj2stat test0.traj 1000
+		- Note: if initial step is within randomization steps, running averages are outputted to .stat.dat file (btw, one can also use keyword "raw" for that)
+	- minor bugfixes since original inception by LEJ:
+		- step handling works correctly now
+		- standard deviation for epsilon and epsilon_RF are now sqrt of variance (was variance)
+		- cleaned up most NaNs by making sure the variances are >=EPS (otherwise they are set to 0.0)
+	- new things:
+		- fixed calculation of variance of variance using Gaussian error propagation
+		- beautified output
+		- running averages are calculated if initial step is within the randomization steps and outputted to a .stat.dat file
+			- number of +/- blocks to use is specified in [Simulation Parameters] item <running_averages> and defaults to 4
+		- new paramater in [Simulation Parameters]: "correlation_length", which defines number of steps after which no autocorrelation between properties of interest exists
+			- obtain by use of statistical analysis with traj2stat and plotting of correlation length
+-improved trajectory file reading of statistics
+	- speeds up <traj2stat> significantly (approx. square root for big trajectory files)
+-in LOD ellipsoid charge reduction to one charge and a dipole, now remove charge if it is below machine epsilon
+-completely deprecated element property "averageme" (which is now calculate_order for both elements and groups)
+-BIG DEPRECATION: gofr.cpp, output_data.cpp, and get_means.cpp
+	- enhanced functionality is provided through trajectory file and separate tools <traj2corr> and <traj2stat>
+
+Beta 10
+-BIG FAT CHANGE: <average> in element definition is now <calculate_order> for elements and groups and defaults to false
+-added analysis tool <traj2corr> (syntax: traj2corr <trajectory filename> (optional: start step))
+	- tool calculates correlation functions (g(r), g_mu(r), end-to-end distance, etc.) from trajectory file
+	- behavior is controlled through section [Analysis: <analysis type *or* group name *or* empty>] in configuration file for particular simulation
+		- if section is just [Analysis] a simulation system wide analysis is performed
+		- if [Analysis: <group name>] is present a group-internal analysis for existing groups of that type is performed (includes LOD groups)
+			- <group name> can be appended to "<group name>, <analysis type>" in order to set a default analysis type if no others are specified (see below)
+		- alternatively, [Analysis: <analysis type>] performs system-wide analysis with default analysis type <analysis type>
+			- this default analysis type is only used if *no* other types are specified in section
+		- parameters to control analysis:
+			- flex list "elements = {entity 1, entity 2 | some other entity, and another }"
+				- defines the pair(s) used for a particular analysis
+				- entity names that can be used are:
+					- plain numbers (e.g. "elements = {42,93}") indicating either:
+						- element numbers in the trajectory file (in the order they are in there),
+						- *or*, in case we're in a group-internal [Analysis: <group name>] section, group element numbers
+					- element type names as they are defined in the configuration file (e.g. "C.3")
+					- group names as defined in the configuration file (e.g. "Acetonitrile")
+						- group names can also be (if existing) LOD groups (e.g. "Acetonitrile.LOD1" for first LOD group derived from "Acetonitrile" group)
+						- group names can be appended by ".Component" in order to specify a particular component
+					- special entities currently are "x-Axis", "y-Axis", and "z-Axis"
+					- all entities except plain numbers or special ones can be appended with the qualifiers ".center" or ".dipole" (more are planned)
+			- flex list "type = {type 1 |type 2 | ... | type N}" specifies the analysis types being calculated for a given analysis, those types currently are:
+				- gr, gmu, cosine, gammaalpha, distances
+				- for gr, gmu, and cosine a number can be appended, e.g. "gr:2", indicating higher orders
+			- "nr_bins": how many bins to use for histograms
+			- "startstep": overrides default starting step from which to read positional data
+				- default starting step can be set through command line, or
+				- if none is provided there, is the number of steps specified in the configuration file minus the number of "last steps" (parameter "laststep")
+			- "endstep": overrides the step where to end analysis
+			- "average_frames = <N>": can be set to create a histogram every N frames (in case simulation step evolutions of functions are needed)
+				- by default the histogram is created from all frames between start and end step
+	- multiple [Analysis] sections to perform multiple different analyises can be specified in a configuration file
+-added option "match_epsilon" in [Detail: <group name>] section to match Lennard-Jones epsilons of LOD ellipsoids to underlying fully atomistic Lennard-Jones epsilons
+	- this is now the default behavior
+	- previously (or with "match_epsilon=0") LJ epsilon was calculated from weighted average (elements closer to ellipsoid have larger weights) of underlying fully atomistic LJ epsilons
+	- new Monte-Carlo type algorithm calculates LJ epsilon based on LOD ellipsoid shape and underlying fully atomistic model for all angles around the LOD ellipsoid
+		- distance is from LOD ellispoid *or* fully atomistic surface upto distance were numerical instability occurs (EPS = 1/r^LJ exponent)
+		- potential and potential gradient is used to calculate LJ epsilons at random location around LOD ellipsoid
+		- because LJ epsilon has anisotropy calculation is considered finished when variance of epsilon variance is 10^-4 (in other words, standard deviation of epsilon variance is 1%)
+-added angle and distance dependent output option "output_epsilons" for Lennard-Jones epsilons during LOD group creation (see above)
+-for LOD creation volume and epsilon matching calculation results are now stored automatically in external file named "<output base filename>.conf.dat"
+	- if file is present these calculation won't be rerun, significantly speeding up tools like "traj2x3d" and "traj2corr"
+-added MiniCL as part of the BulletPhysics library in "bulletphysics" folder
+	- MiniCL can run OpenCL code as a fallback in case no OpenCL implementation is available during link time
+-added OpenCL test in "tests/OpenCL" as testbed for future code migration to OpenCL
+	- currently compiles with both OpenCL and MiniCL on Linux, Mac OS X, and Windows
+	- includes example implementation of excluded volume found in MC_Config for benzene ring
+-implemented more general posix thread behavior, no use "-pthread" compiler switch if available and fall back to "-lpthread" if not
+	-"-pthread" is only way GCC 4.6.1 will compile MiniCL code properly
+	-"-lpthread" currently is required on Mac OS X
+-added keyword "calculate_order" to [Element] and [Group] definitions
+	-if set to 1 dipole from respective element or group is used in order parameter calculation
+	-deprecates "averageme"
+	-additionally, keyword "order_dipole_component" in [Detail] section of particular group can choose which component's dipole is used (default: 0, meaning the whole group's dipole)
+-the usual alotment of bugfixes
+
+Beta 9
+-added parameter <allow_bond_bend> to [Group: <group>] section to allow (or disallow) bond bending during non-independent group randomization
+-changed behavior that simulation would abort if elements get to close to each other
+	- new behavior is to simply not accept the particular move that lead to it
+-now non-independent group randomization properly separates possible moves (bond stretch, bend, rotate around previous, or current element)
+-added visualization of underlying fully atomistic model to <traj2x3d>
+	- parameters to control behavior are in [Detail: <group name>]
+		- can be switched on with "visual_original.<nr>" (<nr> is LOD number)
+		- "scale_original_vdw = <fraction, e.g. 0.5>" can be used to scale fully atomistic model sphere/ellipsoid sizes (makes for prettier visualizations)
+-bugfixes
+
+Build AT -- upto Beta 8.2
+-added modularized makefiles (compiler choice and flags now in Makefile.choices)
+-added "test" folder (to run through existing tests, use make test)
+-added complex vector class (at the moment only what's needed for eigenvalues)
+-added eigenvalue solver for 3x3 matrix
+-sped up a couple of things in <stdafx>
+-added support for multiple molecule types - how about n instead of 2? ;-)
+-configuration is now read from a textfile
+	- the default filename for that is "./<program name>.conf" (<program name> currently is MCfig, but one could rename the executable ...)
+	- if other filename is desired, that's what the first command line argument is for (e.g. "./MCfig here_is_my.conf")
+-reworked Cnsts class and renamed to Config class which given what it does is more appropiate
+-configuration and simulation data types are now in separate structures called Config_Data (Config.h) and Element (MC_Elements.h) which are used in respective classes
+-added "docs" folder containing configuration file and makefile for Doxygen (to create use make docs -- make clean deletes it again)
+	- "make docs" creates a folder "docs/html", "docs/html/index.html" can be opened with a browser
+	- documentation is automatically created from source code, special comments (see e.g. Config.h for minor changes to commenting style) are incorporated
+	- major helpful features are dependency and call graphs for functions :-)
+-merged Ellipse and Molecules classes into MC_Elements class
+-moved functions manipulating elements into MC_Elements class (former Vmu2body.h, Vmu3.h, OneStep.h, evolve_system.h, and VLJ stuff)
+- added "benchmark" folder containing framework for benchmarking/comparisons
+	- allows compiling code with different compilers/compiler options and run it with different config files
+	- also supports executing old pre-compiled version for regressions testing
+	- each benchmark item is run multiple times to get overall averages and standard deviations of runtimes and results
+-changed data representation so that molecule (element) type properties need only be stored once (not per individual element)
+	- individual element properties (dipole moment, rotation, position, potential) are stored separately
+	- this reduces overall memory footprint significantly (from ~229 bytes per element, to ~140 bytes per molecule and ~119 bytes per molecule type
+	- initial dipole is now fixed in z-direction for all elements (current practice, but not in data representation)
+-changed configuration file format to accomodate for groups and interaction potentials
+	- now sections are distinguished by section name and subname, e.g. "[Element: A]" is section "Element" with name "A"
+	- provided arbitrary element names and group names in case the user passed out but somehow managed to run the program
+		- in case said person wakes up to look at results those names are encased by "<" and ">"
+		- arbitrary lists can be easily extended at the bottom of Config.h
+	- element types can now have charges (how ever many you want), keyword <charges>
+		- if no charge is specified none is created and everything behaves as usual
+		- charge location inside ellipsoid from center are specified with <charge_location.n>
+			- n is the number of the charge defined with <charges> (counting starts at 1)
+			- charge location defaults to (0,0,0)
+-cleaned up Config.h a bit
+	- no more num_mol_types (now num_element_types)
+	- no more special mol_type structure (is now using MC_Elements.h's Element_Type structure) => no more code doubling :-)
+-implemented group definitations in configuration file parsing:
+	- currently only works for PBCs in box (maybe extend later)
+	- groups are defined in the configuration file through new section "[Group: <group name>]" (also see example in MCfig.conf)
+		- groups are an assortment of element types the user defines through a list
+			- example for CH3: "C,H,H,H"
+			- these elements are created and stored in the initial configuration to form group archetypes
+		- connectivity for each element is specified in configuration file through easy syntax
+			- CH3 example with elements defined as above: "{2,3,4|1|1|1}"
+			- explanation: first element (C) is connect to elements 2,3,4 (the three Hs),
+			               second/third/fourth element (H) connected to first (C)
+			- syntactic sugar: already defined links do not need to be specified a second time
+				- for CH3 example, the same result can be achieved with "{2,3,4|||}"
+				- this can avoid redundancies but should be used carefully:
+					- underspecifying is worse than overspecifying
+					- there is no way for the code to read a user's mind (except in certain cases my own)
+		- user can specifiy position as well as rotation angles (roll, yaw, pitch) for each group element
+			- if not specified defaults are used (position at center, no rotation)
+		- also connection location, normal, and tangent for each group element (1 to 1) can be specified
+			- defaults to center and no normal/tangent (not needed for classical force fields)
+			- if a potential needs the normal and tangent to define bending and rotating around the
+			  connection normal it needs to check their presence on creation
+		- bond ranges (after which non-bonding interactions are calculated again) are defined per group
+			- keyword: <bond_range> (if set to zero nonbonding interaction will not be calculated within a group)
+			- implementation uses a bitfield to store if element a is less than "bond_range" bonds away from b
+			  for the occasional 10,000 element group not to run out of memory or universe time
+				- algorithm is now flexible enough to add elements to group later ...
+	- implemented defining interaction potentials (currently stretch, bend, torsion)
+		- syntax is "[Interaction: <group name>, <potential name>]", where group name is the associated
+		  group archetype (needs to be present) and potential name is the name of this potential (which can be empty)
+		- syntax for defining multiple element tupels (how many depends on potential type) is "{1,..,a|1,..,b|...|n-th tupel}"
+			- generally, the order of elements in individual tupel depends on potential type used
+				- i.e. for a bend potential in element tupel "1,2,3" element number 2 is the center element
+				- more restrictive syntax could be used but would only add to parser complexity without real gain to the user
+-implemented ability to define group structure by reading Mol2 file format (keyword: <structure_mol2>)
+-got Clang compilability back running (iomanip.h in MC_Elements.h was to blame)
+-fixed warnings when compiling with "-Wall"
+-implemented generalized lattice generator
+	- any number of elements (incl. groups) can now be placed in system volume
+		- if space runs out (determined by maximum bounding sphere around elements/groups) system volume will be extended
+		  and warning is generated that NPT ensemble will be used to adjust volume to user specified target volume (bool NPT_ensemble in MC_Element)
+	- ability to place groups and elements
+	- for groups:
+		- groups are placed in fcc lattice "superlattice"
+		- elements are placed in sc lattice in empty space of fcc unit cell
+	- elements are placed in simple cubic lattice which is scaled according to system volume
+-implemented group potentials (currenty stretch, bend, and torsion)
+-electrostatic interaction reworked to allow for charges in elements (and charge-charge, charge-dipole, and dipole-dipole interactions)
+-"touch" algorithm now incorporated into MC_Elements class (significant speed improvement through mild code reorganization, no algorithm change)
+-added switch "group_dipole" to group definition (has default value of 0 = false if not specified)
+	- this switch is important for groups which have charges in the individual group elements
+		- if true (1) the overall maximum dipole moment of a group is calculated over all group elements as a whole
+		- if false (0) the overall maximum dipole moment is calculated from the individual group elements' maximum dipole moments
+	- distinction is important for calculating ordering
+		- for groups with individual elements being allowed to freely orientate in all directions the maximum attainable dipole moment
+		  is the sum of the maximum dipole moments of each group element
+		- for groups with elements being held in place by force fields or with charges at the individual elements' centers the maximum
+		  dipole moment is given by the initial group element positions given by the user
+-output group potential with other potentials in output file
+-fixed variance calculation output (now properly divided by NkT^2)
+-implemented proper Cv calculation for single elements and groups (a.k.a. molecules)
+	- degrees of freedom now is user definable variable "dof" for element type definition (defaults to 5) and group definition (defaults to 6)
+-deprecated (and deleted) get_position.cpp for coordinate (and statistics) output
+	- output now is in trajectory file (ending .traj) which also contains calculation results (statistics)
+		- can also contain output for multiple steps (configuration file option: <chkcoords>)
+		- trajectory file can be used to resume a calculation
+-separated Config class into ConfigReader and MC_Config classes
+	- ConfigReader does configuration file reading and provides general routines to do so
+	- MC_Config is child of ConfigReader extending it to read in configuration (and trajectory) files for MC simulation
+-now randomly choose to do group rot/trans *xor* internal structure changes
+	- also, internal structure changes in bond rotations are for one rotation angle (randomly either roll, yaw, or pitch)
+-added trajectory file to X3D tool "traj2x3d" replacing the online code
+	- added x3d code intendations
+	- new x3d output uses prototype declarations instead of copies
+	- camera is positioned so whole simulation volume visible
+	- coordinate system orientation in camera view is: +x - right, +y - back, +z - top
+-parameter <runs> is deprecated (not used at all, instead second command line parameter is used to allow for better scripting)
+-parameter <lin_dim> is deprecated now -- simulation volume is constructed according to boxlength array
+-added ability to include additional configuration files into configuration file
+	- directive is "&include <file to be included>" and needs to happen at beginning of configuration file
+	- include order is as written in the configuration file
+	- if a section is redefined parameters are defined by highest priority include
+		- main configuration file has highest priority
+		- include file specified later has higher priority
+		- one section can be spread across multiple configuration files
+-multiple sections with same name are now combined in order of appearance
+-included file path now is relative to where main configuration file is (same is true for trajectory files)
+-implemented "self reaction field": reaction field of originating element/group (if group_dipole set for particular group)
+-considerable speedup for creating animated X3D file (factor 30+)
+-dihedral potential additions and fixes:
+	- renamed potential definition from <torsion> to <dihedral>
+	- theta now calculated correctly by spanning planes
+	- allow upto 100 Fourier-components for dihedral potential
+	- added improper dihedrals (type=improper_dihedral)
+-added electrostatic and Lennard-Jones potential scaling factor for particle bond distances
+	- can be defined for each group through parameter <bond_distance_factors>
+		- e.g. "bond_distance_factors = {3,0.5|4,0.75}" defines scaling of 0.5 for distance of 1-4 bonds (3 bonds away) and 0.75 for 1-5 bonds
+		- a maximum of 14 such scale factors are allowed
+-added VERSION string and moved BUILD to ConfigReader.h
+-cleaned up behavior with no command line parameters a bit: Now present Compile date, Build, and Version info as well as syntax for both MCfig and traj2x3d
+-added Config.h to bundle all "#define" statements for whole project
+-added NpT ensemble calculations
+	- options in [Simulation Parameters] are <NpT> and <pext> for switching NpT ensemble on (default off) and setting external pressure (in atm)
+-added charge read-in from mol2 file
+	- overrides any and all potential charge(s) in similarly named element types
+-fixed charge-charge interaction so molecule simulations yield comparable results to Tinker (tested with Acetaldehyde, Acetonitrile, and Chloroform)
+-now relative and absolute filenames are treated correctly (absolute ones meant trouble before)
+-now allow list in variable length tupels, e.g. "{2,...,8}" evaluates to "{2,3,4,5,6,7,8}" (helpful for level of detail partitioning)
+-items defined in section "[Simulation Parameters]" can now be used in calculation for items in all sections
+-fixed HUGE bug: rotation of z-axis is not enough to recover rotation matrix, now use rotation axis and angle (there's the reason X3D uses this ...)
+	- changed trajectory file format and associated tools accordingly
+	- implemented thorough test (in tests/testmatrix) that proofs all rotation matrix related code with 10,000,000 random vectors/rotation matrices
+		- checks out for new implementation
+	- this bug also fixes a previously observed instability upon trajectory file calculation resume
+-implemented level of detail definition for configuration file "[Detail: <corresponding group name>]"
+	- ellipses are are constructed from elements through gyration tensor
+	- matching of Lennard-Jones volume excluded by original (fully atomistic) group definition possible with "match_volume=1"
+		- works with both spherical and ellipsoidal elements
+		- non-volume matched level of detail possible
+			- ellipse semiaxis then are derived from gyration tensor, but not scaled to fit original volume (since it's not calculated)
+	- interaction potentials (read: fixed bond potentials) and charge distribution/dipole implemented
+-quirk in gcc 4: f(...,ran2(),ran2(),ran2()) results in gcc optimizer only calling ran2 once
+	- workaround: fill individual variables with ran2() values and pass those
+-added project file for opensource cross-platform IDE Code::Blocks
+	- can be used for building Windows binaries (currently only 32bit with included compiler)
+-added detection for OpenCL environment
+	- test "invsqrt" can now be linked against OpenCL and calculates inverse square root
+-MC_OpenCL.h created
+	- bundles functions to create OpenCL context, compile and run OpenCL program code
+-group components can now be defined in [Detail: <group>] sections
+	- define componets using flex tupel "components = {element nrs in group for component 1 | comp. 2 | ... | component N}"
+	- parameters are (<nr> is respective component number):
+		- "component_show_dipole.<nr>": (currently unused) control wether to show component dipole moment
+		- "component_color.<nr>": overrides color for elements (allows e.g. for color code molecule parts in visualization)
+		- "component_texture.<nr>": overrides texture for elements
+-bugfixes, bugfixes, bugfixes :-)
+
+Build 011611
+-Been a long time since the last build…
+-Maintenance build adding comments and removing dead code
+-No feature changes or bugfixes
+-Typo corrected in which the recalculated Lennard-Jones sigma values were incorrectly called rho values; variable names are now consistent. No effect on operation of code.
+
+Build 021710
+-Maintenance build fixing minor issues with 020910 and improving data output.
+-Fixed the 'n' bug in 020910, where one of the line breaks in the coordinate files was replaced by an n.
+-Line break tweaks on output file, as well as some cleanup to underlyng code.
+-Cv now includes rotational component
+-Var(U/NkT) is now given instead of Var(U)/NkT
+-Final average dielectric constant now uses <epsilon_s> instead of assuming that epsilon_s = epsilon for the SCRF boundary condition. See 2010 JPC-B paper for details.
+-New summary file format, which finally fixes the issue with multiple molecule types, as well as being human-readable, though written in a manner sure to please Fortran programmers. Check it out! Note that the old matlab script for parsing summary files won't parse the new format, but I was planning on replacing that clunky script anyway...
+
+Build 020910
+-Will probably be short-lived; mostly just want to get through my General Exam right now.
+-Runs that read coordinates in tend to segfault at step 20300. This is really weird given that it is not a milestone step.
+-Changed acceptance counter from int to long. While this didn't seem to make a difference at runtime, it adds room for longer runs.
+-Changed all representations of steps to long as well since simulations are now often longer than the maximum unsigned int value.
+-Changed "Calculating g(r)" to "Calculating correlation functions" to indicate that there are now a lot more than one.
+-Implemented new vector library. Should have no user-side effects except (hopefully) faster calculations speed (up to 30% faster for Touch under LLVM-gcc 4.2)
+-Deprecated Vec3.h and Mat33.h, however VecMat.h must now be included.
+-Re-organized header files to avoid linking conflicts
+-Code now generates summary files whether or not a batch job is being run.
+-Added calculation of Cv and dEvap.
+-Added Onsager polarizability (rescale mu using Lorentz cavity). This is still an experimental feature, and is turned on separately from the polarizable medium.
+-Simulated annealing now works in two stages, one for initial randomization, and one for the pre-equilibrium phase. The first phase occurs during the first randsteps/2, the second phase occurs for randsteps steps right after randomization, with a temperature gradient that is only half as fast as the first one.
+-Lots of dead code stripping
+
+Build 121709
+-Fixed critical bug involving incorrect indexing when calculating cos(gamma). This only affected g_mu(r) and only changes the amplitude, not the sign or general shape of the function.
+-Fixed bug with E0 not being updated if a static reaction field was used under constant voltage conditions.
+-Added tracking of sqrt(M2)/Nmu during run.
+-Added coordinate-file reading capability. Can now load an arbitrary configuration of particles or restart a finished run based on the chkfinalcoords file generated at the end.
+-Broke LatticeOids3d constructor into several functions to accomplish this and clean up the body of the function.
+-Added loader type indicator to output.
+-Restructured randomizer so that it is completely bypassed if randsteps is set to zero.
+-Added three new correlation functions, g2mu(r), gamma_dist, and cos(gamma)[cos(alpha)]. The first is the centrosymmetric equivalent to gmu(r), and is proportional to cos^2(gamma). The second replaces the "g of gamma" and provides the distribution  of cos(gamma)s within the first neighbor shell only, and the third provides the distribution of cos(gamma)s as a function of cos(alpha), where alpha is the angle between the central dipole (i) and the vector between dipoles i and j (rij). rij is calculated as j-i as to be relative to each i.
+-Optimized correlation function code to reflect presence of new functions.
+-Added check to make sure particle dimensions read from file are consistent with those input in main.cpp. Will default to file if inconsistent.
+-Added check to make sure that particle dimensions are all greater than 0.
+-Energy is now displayed in units of NkT instead of pico-ergs for size-independence.
+-Miscellaneous code cleanup (removing old bugs and hopefully not adding too many new ones) and output tweaks.
+
+Build 102309
+-Output files now indicate if still or rot_notrans are on for particle types.
+-RMS displacement calculated as well as acceptance. This should allow easier optimization of move sizes.
+-A minimal simulated annealing algorithm has been added for breaking up recalcitrant lattices. It only runs during the first half of the randomization phase, starts from twice the operating temperature, and cools down to the operating temperature.
+-Dipole-dipole interactions are now only calculated between particles that *have* dipoles, saving a little computation time if using a non-dipolar solvent for steric purposes.
+-Initial acceptance rate  and RMS displacement values are printed to standard out after randomization phase, making it easier to decide whether or not a simulation is worth continuing.
+-Improved recording of simulation timing.
+-Fixed minor typos/formatting issues in output, as usual.
+
+Patch 091409
+-Added a warning if Touch cutoff is larger than LJcut. The code will set the Touch truncation radius to LJcut and use Touch for all LJ interactions if this happens.
+-Fixed a typo in output_data that would incorrectly display which particle types are being averaged.
+-Minor grammar fixes in output.
+
+Build 090909
+-Fixed a bug in the Ez back-calculation where the scaling factor wasn't multiplied by the field in the non-dynamic RF case.
+-Removed mmscale and mescale, since the dielectric continuum model now handles scaling of interactions.
+-Removed skipmm, since it was a little-used diagnostic function that has outlived its purpose (finding the mx transpose bug last year).
+-A few fixes to the dielectric continuum model
+-Added capability to run the simulation at constant external voltage (e.g. a real poling field, with E0 automatically adjusted based on the the dielectric constant)
+-Tested consistency of dielectric constant between no-field, E0, and real-field runs (appeared good).
+-Changed the reaction field setup so it disables the reaction field for a static RF run if epsilon_s = n2 instead of 1, due to the modified form of the RF equation, since the RF contribution should go to zero if there is no difference between the inside and outside of the cavity.
+-The usual minor tweaks to log file output
+
+Build 090109
+-Fixed a bug involving miscalculation of sphere-sphere distances when Touch was used, due to not squaring the sphere-sphere r0/r term.
+-Added an improved touch truncation mechanism that ignores touch entirely if both molecules are spherical.
+-Tested to make sure results for spheres with and without Touch (disabling all automatic cutoffs) were consistent. (yes, they are)
+-Fixed a bug involving the calculation of the g-factor for mixtures; the code previously used n_oids instead of the correct sigma(n_i*mu_i^2).
+-Generalized Ez back-calculation so it can handle boundary conditions other than a self-consistent reaction field.
+
+Build 082709
+-Added minimal capability for incorporating polarizability by defining a refractive index for the medium. The n2 is factored into the equation in the manner of Onsager, and used in place of the eps_inf of Schurr and Pounds & Madden. This should allow more effective use of implicit solvents.
+-Added the ability to selectively average over A, B, or both types of particles. This should allow use of explicit solvents.
+-Added calculation for 'actual' electric field in medium. This will still require some tweaking to account for all boundary conditions that can be used in the simulation.
+-Added reaction field strength and type, Touch cutoff, and refractive index  to the output, as well as minor cleanup on some other variables.
+-Fixed the particle types bug (1 and 2 instead of 0 and 1) in get_positions.cpp
+-Miscellaneous minor tweaks to log file output and code comments
+
+Build 082609
+-Added dielectric tensor capability. Still not sure if the math is right here; the diagonal elements are probably ok, but the off-diagonals are not necessarily so.
+-Dielectric constant is now calculated just for the applicable boundary condition, instead of for SC and KF (without regard to what is actually being used).
+-Fixed the dynamic reaction field to work properly if a poling field is on. It previously defaulted to the no-field method of calculating epsilon if a field was present, which doesn't work very well when you are extracting M^2 from a single step.
+-Added a few functions from the new linear algebra library for testing purposes, and to start the migration to the new matrix and vector classes. They have been very carefully tested, and shouldn't affect end-users at all.
+-Removed non-spherical cutoffs since they aren't particularly useful.
+-Separated the spherical cutoffs into LJ and electrostatic cutoffs, to allow more rapid truncation of the LJ potential and faster computation. This is particularly important when Touch is used, since the Touch cutoff will likely need to be expanded to one more neighbor shell.
+-Added setup code to make sure cutoffs are physical.
+-*Added off-center dipoles.* This required significant modification to the electrostatics code to avoid a speed hit if the dipoles are centered. It currently runs slowly if they are not, but both of these issues will be resolved in the next major build.
+-Moved PBCs to a helper function to support off-center dipoles.
+-Adjusted output functions to account for all of the above changes.
+-Added some groundwork for future expansion of the code.
+-Assorted minor tweaks

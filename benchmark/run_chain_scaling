@@ -1,0 +1,52 @@
+#!/bin/bash
+####################################################
+# This file is distributed under the               #
+# University of Illinois/NCSA Open Source License. #
+# See LICENSE file in top directory for details.   #
+#                                                  #
+# Copyright (c) 2016 FIGSiM developers             #
+####################################################
+
+cd ..
+make MCparams
+cd benchmark
+
+nr_runs=24
+basename="Chain"
+
+echo "CPP = g++" > Makefile.choices
+echo "CPPFLAGS = -march=native -O3 -flto" >> Makefile.choices
+make clean
+make
+
+for((k=1; k<2; k++)) # run fully-atomistic (k=0) and LOD version
+do
+	if [ $k -gt 0 ]; then
+		basename="Chain-LOD"
+		nr_runs=48
+	fi
+	echo -e "#steps:\t"`MCparams configs/Chain_scaling.conf "Simulation Parameters" steps`"	" > chain_scaling_results$k.dat
+	echo -e "#randsteps:\t"`MCparams configs/Chain_scaling.conf "Simulation Parameters" randsteps`"	" >> chain_scaling_results$k.dat
+	echo '#basename	N	randomization time	overall runtime' >> chain_scaling_results$k.dat
+	elements_string="CH4, CH4, CH4, CH4"
+	connectivity_string="|1|2|3";
+	group_connection_string="";
+	for((i=4; i<=nr_runs+4; i++))
+	do
+		cp configs/Chain_scaling.conf configs/Chain_scaling.scale
+		echo "add_start_LOD = "${k} >> configs/Chain_scaling.scale
+		echo "elements = "${elements_string} >> configs/Chain_scaling.scale
+		echo "connectivity = {"${connectivity_string}"}" >> configs/Chain_scaling.scale
+		echo -e ${group_connection_string} >> configs/Chain_scaling.scale
+		if [ $k -gt 0 ]; then
+			echo -e "\n[Simulation Parameters]\nFileOut=Chain-LOD\n" >> configs/Chain_scaling.scale
+		fi
+		./MCfig configs/Chain_scaling.scale ${i}
+		echo -n "Chain	"`MCparams "$basename"_${i}.traj General N want_traj`"	" >> chain_scaling_results$k.dat
+		echo -n `grep 'randtime = ' "$basename"_${i}.traj | sed s/'randtime = '//`"	" >> chain_scaling_results$k.dat
+		echo `grep 'runtime = ' "$basename"_${i}.traj | sed s/'runtime = '//` >> chain_scaling_results$k.dat
+		elements_string=${elements_string}", CH4"
+		connectivity_string=${connectivity_string}"|"${i}
+		group_connection_string=${group_connection_string}"group_connection."${i}"-"$((i+1))" = (-2,-1)\n"
+	done
+done

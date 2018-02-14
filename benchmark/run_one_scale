@@ -1,0 +1,39 @@
+#!/bin/bash
+####################################################
+# This file is distributed under the               #
+# University of Illinois/NCSA Open Source License. #
+# See LICENSE file in top directory for details.   #
+#                                                  #
+# Copyright (c) 2016 FIGSiM developers             #
+####################################################
+
+# parameters:
+# $1 ... compiler
+# $2 ... compiler options
+# $3 ... number in benchmark list
+# $4 ... command to run
+# $5 ... configuration filename (parameter of command)
+# $6 ... basename of output file
+
+echo -e "#steps:\t"`MCparams configs/$5 "Simulation Parameters" steps`"	" > scaling_results$3.dat
+echo -e "#randsteps:\t"`MCparams configs/$5 "Simulation Parameters" randsteps`"	" >> scaling_results$3.dat
+echo '#basename	N	randomization time	overall runtime' >> scaling_results$3.dat
+
+nr_runs=16
+basename=$6
+
+echo "CPP = "$1 > Makefile.choices
+echo "CPPFLAGS = "$2 >> Makefile.choices
+make clean
+make
+for((i=0; i<nr_runs; i++))
+do
+	cp configs/$5 configs/$6.scale
+	echo "[Simulation Parameters]" >> configs/$6.scale
+	echo "scale=0.8+"${i}"*0.15" >> configs/$6.scale
+	./$4 configs/$6.scale ${i}
+	echo -n $6"	"`MCparams "$basename"_${i}.traj General N want_traj`"	" >> scaling_results$3.dat
+	echo -n `grep 'randtime = ' "$basename"_${i}.traj | sed s/'randtime = '//`"	" >> scaling_results$3.dat
+	echo `grep 'runtime = ' "$basename"_${i}.traj | sed s/'runtime = '//` >> scaling_results$3.dat
+done
+

@@ -1,0 +1,26 @@
+#!/bin/bash
+####################################################
+# This file is distributed under the               #
+# University of Illinois/NCSA Open Source License. #
+# See LICENSE file in top directory for details.   #
+#                                                  #
+# Copyright (c) 2016 FIGSiM developers             #
+####################################################
+
+echo "#command	configfile	compiler	options	runtime	std.dev.	randomization time	std.dev.	filesize (bytes)" > benchmark_results.dat
+
+n=0
+cd ..
+make traj2stat
+cd benchmark
+while read command configfile basename compiler options
+do
+	./run_one_set "$compiler" "$options" $n $command $configfile $basename
+	echo -n $command"	"$configfile"	" >> benchmark_results.dat
+	awk -f average.awk log$n.dat >> benchmark_results.dat
+	echo -n "	" >> benchmark_results.dat
+	ls -l $command | awk '{ print $5 }' >> benchmark_results.dat
+	((n++))
+done < benchmark_list
+make clean
+
