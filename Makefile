@@ -192,13 +192,14 @@ optimize:
 repository:
 	rm -rf $(PREFIX)Source
 	mkdir $(PREFIX)Source
+	cp $(PREFIX)LICENSE $(PREFIX)Source
+	cp $(PREFIX)README.md $(PREFIX)Source
 	cp $(PREFIX)CHANGELOG $(PREFIX)Source
 	cp $(PREFIX)MCstat $(PREFIX)Source
 	cp $(PREFIX)MCsubAT $(PREFIX)Source
 	cp $(PREFIX)MCqueueInfo $(PREFIX)Source
 	cp $(PREFIX)MCrun.sh $(PREFIX)Source
 	cp $(PREFIX)Makefile* $(PREFIX)Source
-	cp $(PREFIX)*.txt $(PREFIX)Source
 	cp $(PREFIX)*.plt $(PREFIX)Source
 	cp $(PREFIX)*.png $(PREFIX)Source
 	cp $(PREFIX)*.cpp $(PREFIX)Source
@@ -207,10 +208,8 @@ repository:
 	mkdir $(PREFIX)Source/docs
 	cp $(PREFIX)docs/Makefile $(PREFIX)Source/docs
 	cp $(PREFIX)docs/Doxyfile $(PREFIX)Source/docs
-	cp $(PREFIX)docs/*.tex $(PREFIX)Source/docs
 	cp $(PREFIX)docs/*.pdf $(PREFIX)Source/docs
 	cp $(PREFIX)docs/*.eps $(PREFIX)Source/docs
-	cp $(PREFIX)docs/*.png $(PREFIX)Source/docs
 	mkdir $(PREFIX)Source/tests
 	sed "s/TESTS =/\#TESTS =/g" $(PREFIX)tests/Makefile | sed "s/Makefile/Makefile\\nTESTS = /g" > $(PREFIX)Source/tests/Makefile
 	cp $(PREFIX)tests/*.sh $(PREFIX)Source/tests
