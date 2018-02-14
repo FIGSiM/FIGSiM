@@ -17,6 +17,13 @@ i) If applicable, please cite our publications. Here is a starting point:
       Bruce H. Robinson: "Systematic Generation of Anisotropic Coarse-Grained
       Lennard-Jones Potentials and Their Application to Ordered Soft Matter",
       J. Chem. Theory Comput. 12, 9, 4362-4374 (2016)
+  + further relevant papers may include:
+      R. D. Nielsen, H. L. Rommel, and B. H. Robinson: "Simulation of the
+      Loading Parameter in Organic Nonlinear Optical Materials",
+      J. Phys. Chem. B, 108, 25, 8659-8667 (2004)
+      Harrison L. Rommel and Bruce H. Robinsonm: "Orientation of Electro-optic
+      Chromophores under Poling Conditions: A Spheroidal Model",
+      J. Phys. Chem. C, 111, 50, 18765-18777 (2007)
   + Dissertations of the developers listed below are publically available
 
 ii) The original programs developed by Andreas F. Tillack, Lewis E. Johnson,
