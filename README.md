@@ -1,6 +1,6 @@
 # FIGSiM - Finite Improbability Generator for Simulation of Materials
 
-This code is the open-source (UIUC/NCSA license) version of the Monte-Carlo simulation package originally developed at in Prof. Bruce H. Robinson's lab at the Chemistry Department of the University of Washington, Seattle.
+This code is the open-source (UIUC/NCSA licensed) version of the Monte-Carlo simulation package originally developed in Prof. Bruce H. Robinson's lab at the Chemistry Department of the University of Washington, Seattle.
 
 # Build instructions
 
