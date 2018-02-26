@@ -1,12 +1,4 @@
-/****************************************************/
-/* This file is distributed under the               */
-/* University of Illinois/NCSA Open Source License. */
-/* See LICENSE file in top directory for details.   */
-/*                                                  */
-/* Copyright (c) 2016 FIGSiM developers             */
-/****************************************************/
-
-/*
+/* 
 testmatrix.cpp
 	Test matrix implementation
 	written by Andreas Tillack Jan 22, 2011
@@ -14,6 +6,14 @@ testmatrix.cpp
 
 #define N 1E9
 #define bins 1000
+#define dice_confidence 0.0005
+
+// How verbose should the dice output be?
+// 0 ... just the final answer
+// 1 ... info for each round
+// 2 ... every individual throw
+
+#define DEBUG_DICE 0
 
 #include <iostream>
 #include <string.h>
@@ -48,11 +48,110 @@ int main(int argc, char * const argv[]) {
 			exit(1);
 		}
 	}
-	cout << "-> Creating " << N << " uniformly distributed random numbers and calculating distribution.\n";
+	// Initialize all random number generators
 	__int32_t idum=-8;
+	init_CMWC4096(8);
+	cout << "Dice throwing bonanza: How many dice throws does it take on average to see all faces?\n";
+	cout << "Ran2 algorithm:\n";
+	unsigned int min=12;
+	unsigned int max=6;
+	double sum=0.0;
+	double sum2=0.0;
+	unsigned long n=0;
 	double tstart = clock();
-	unsigned int* distribution=new unsigned int[bins+1];
+	do{
+		unsigned long nthrows=1; // count first throw as one
+		unsigned int thrownr=int(ran2(idum)*6.0); // no +1 here as were left-shifting to populate numbers array
+#if DEBUG_DICE>1
+		cout << "number 1: " << thrownr+1 << "\n";
+		unsigned int nr=1;
+#endif
+		unsigned int numbers=(1<<thrownr);
+		unsigned int current;
+		do{
+#if DEBUG_DICE>1
+			bool first=true;
+			cout << "number " << nr+1 << ": ";
+#endif
+			do{
+				thrownr=int(ran2(idum)*6.0);
+				current=(1<<thrownr);
+#if DEBUG_DICE>1
+				if(first) first=false; else cout << ", ";
+				cout << thrownr+1;
+#endif
+				nthrows++;
+			} while((numbers&current)>0);
+			numbers+=current;
+#if DEBUG_DICE>1
+			cout << "*\n";
+			nr++;
+#endif
+		} while(numbers!=63);
+		if(nthrows<min) min=nthrows;
+		if(nthrows>max) max=nthrows;
+		sum+=nthrows;
+		sum2+=nthrows*nthrows;
+		n++;
+#if DEBUG_DICE>0
+		cout << " -> Round " << n << ": " << nthrows << " throws (running average: " << sum/n << " +/- " << sqrt((sum2-sum*sum/n)/(n*n)) << " throws, min=" << min << ", max=" << max << ").\n";
+#endif
+	} while ((n<6) || ((sum2-sum*sum/n)/(n*n) > dice_confidence*dice_confidence));
 	double tend = clock();
+	cout << "Finished, took " << (tend-tstart)/CLOCKS_PER_SEC << " seconds.\n";
+	cout << "-> Average: " << sum/n << " +/- " << sqrt((sum2-sum*sum/n)/(n*n)) << " throws (stddev=" << sqrt((sum2-sum*sum/n)/n) << ", min=" << min << ", max=" << max << ", " << sum << " throws overall).\n\n";
+	cout << "CMC4096 algorithm:\n";
+	min=12;
+	max=6;
+	sum=0.0;
+	sum2=0.0;
+	n=0;
+	tstart = clock();
+	do{
+		unsigned long nthrows=1; // count first throw as one
+		unsigned int thrownr=int(ranQ()*6.0); // no +1 here as were left-shifting to populate numbers array
+#if DEBUG_DICE>1
+		cout << "number 1: " << thrownr+1 << "\n";
+		unsigned int nr=1;
+#endif
+		unsigned int numbers=(1<<thrownr);
+		unsigned int current;
+		do{
+#if DEBUG_DICE>1
+			bool first=true;
+			cout << "number " << nr+1 << ": ";
+#endif
+			do{
+				thrownr=int(ranQ()*6.0);
+				current=(1<<thrownr);
+#if DEBUG_DICE>1
+				if(first) first=false; else cout << ", ";
+				cout << thrownr+1;
+#endif
+				nthrows++;
+			} while((numbers&current)>0);
+			numbers+=current;
+#if DEBUG_DICE>1
+			cout << "*\n";
+			nr++;
+#endif
+		} while(numbers!=63);
+		if(nthrows<min) min=nthrows;
+		if(nthrows>max) max=nthrows;
+		sum+=nthrows;
+		sum2+=nthrows*nthrows;
+		n++;
+#if DEBUG_DICE>0
+		cout << " -> Round " << n << ": " << nthrows << " throws (running average: " << sum/n << " +/- " << sqrt((sum2-sum*sum/n)/(n*n)) << " throws, min=" << min << ", max=" << max << ").\n";
+#endif
+	} while ((n<6) || ((sum2-sum*sum/n)/(n*n) > dice_confidence*dice_confidence));
+	tend = clock();
+	cout << "Finished, took " << (tend-tstart)/CLOCKS_PER_SEC << " seconds.\n";
+	cout << "-> Average: " << sum/n << " +/- " << sqrt((sum2-sum*sum/n)/(n*n)) << " throws (stddev=" << sqrt((sum2-sum*sum/n)/n) << ", min=" << min << ", max=" << max << ", " << sum << " throws overall).\n\n";
+	cout << "-> Creating " << N << " uniformly distributed random numbers and calculating distribution.\n";
+	tstart = clock();
+	unsigned int* distribution=new unsigned int[bins+1];
+	tend = clock();
 	double tmem=tend-tstart;
 	tstart=clock();
 	for(unsigned i=0; i<N; i++){
@@ -61,8 +160,8 @@ int main(int argc, char * const argv[]) {
 	}
 	tend=clock();
 	double timeran=tend-tstart-tmem;
-	double sum=0.0;
-	double sum2=0.0;
+	sum=0.0;
+	sum2=0.0;
 	cout << "-> Outputting distribution.\n";
 	fstream* outfile;
 	string filename="ran2.dat";
@@ -85,7 +184,6 @@ int main(int argc, char * const argv[]) {
 	cout << "\t-> Average count per bin: " << avg << " +/- " << stddev << "\n\n";
 	
 	cout << "-> Creating " << N << " uniformly distributed random numbers (using CMWC4096) and calculating distribution.\n";
-	init_CMWC4096(8);
 	for(unsigned int i=0; i<bins; i++) distribution[i]=0;
 	tstart=clock();
 	for(unsigned i=0; i<N; i++){
@@ -208,6 +306,7 @@ int main(int argc, char * const argv[]) {
 		
 		delete[] dout;
 	}
+	
 	cout << "*** Finished. ***\n\n";
 	return 0;
 }
