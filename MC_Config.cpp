@@ -10,6 +10,11 @@
 #define IN_MC_CONFIG
 #include "MC_Elements.h"
 
+#ifdef OPENBABEL
+#include <openbabel/mol.h>
+#include <openbabel/obconversion.h>
+#endif
+
 /*!
 Nothing to see here but a default constructor and destructor. Move along.
 Not anymore, look, there's something going on :-) -- AT, Feb 8, 2011
@@ -3344,11 +3349,37 @@ char* MC_Config::PDBConvert(char* content, char* conf, string groupname)
 #if DEBUG_LEVEL>3
 	cout << "*** " << __FUNCTION__ << " *** (" << __FILE__ << ": " << __LINE__ << ")\n";
 #endif
-	cout << "-> Patience young padawan. Feature you are looking for not yet written it is.\n";
+	char* result = NULL;
+#ifndef OPENBABEL
+	cout << "-> Openbabel you need, young padawan. Feature you are looking for requiring it is.\n";
 	exit(42);
+#else
+	string conversion="[PDB conversion]\n";
+	string elements="elements = ";
+	string charges="import_charges = {";
+	string item;
+	stringstream input(content);
+	stringstream mol2out;
 	
-	char* result=NULL;
-	
+	OpenBabel::OBConversion conv(&input,&mol2out);
+	if(conv.SetInAndOutFormats("PDB","MOL2")){
+		OpenBabel::OBMol mol;
+		if(conv.Read(&mol))
+		{
+			conv.Write(&mol);
+			string s=mol2out.str();
+			char* p = new char[s.size()+1];
+			cout << s << "\n";
+			strcpy(p, s.c_str());
+			result = Mol2Convert(p,conf,groupname);
+		}
+		else
+		{
+			cout << "ERROR: Failed to read structure file.\n";
+			exit(1);
+		}
+	}
+#endif
 	delete[] content;
 #if DEBUG_LEVEL>3
 	cout << "*** " << __FUNCTION__ << " *** (" << __FILE__ << ": " << __LINE__ << ")\n";

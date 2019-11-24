@@ -1733,7 +1733,8 @@ inline Vec3 Rot2AlphaBetaGamma(Mat33 &rot)
 	 */
 	
 	double cb=rot.mat[2][2];
-	if(cb>1.0) cb=1.0; if(cb<-1.0) cb=-1.0;
+	if(cb>1.0) cb=1.0;
+	if(cb<-1.0) cb=-1.0;
 	double y=-rot.mat[1][2];
 	double x=rot.mat[0][2];
 	

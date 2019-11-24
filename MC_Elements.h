@@ -14,7 +14,6 @@
 #define INCLUDED_MC_ELEMENTS
 
 #include <signal.h>
-#include <omp.h>
 
 #ifndef INCLUDED_CONFIG
 #include "Config.h"

@@ -23,6 +23,7 @@ double ran_cl(int* idum, int* iv, int* iy, int* idum2);
 double qpwr_cl(double a, unsigned int b);
 double EllipsoidRmin(double theta, double phi, double4 saxes, double* rot);
 double EllipsoidRminVec(double4 direction, double4 saxes, double* rot);
+double IA(double4 dir_area, double4 invsaxes2);
 inline double specialround_CL(double A);
 inline void apply_PBCs(double4* rvec, __constant Simulation_Attribs* configuration);
 

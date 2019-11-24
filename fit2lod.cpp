@@ -28,7 +28,7 @@
  */
 #ifdef OpenCL
 #define CL_TO_STRING(CL) #CL
-const char* OpenCL_code = "#ifdef KHR_DP_EXTENSION\n#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n#else\n#pragma OPENCL EXTENSION cl_amd_fp64 : enable\n#endif\n#define EPS_CL 1.2E-7\n#define pi M_PI\n#define GUID_ARG\n"
+const char* OpenCL_code = "#if defined(cl_khr_fp64)\n#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n#else\n#pragma OPENCL EXTENSION cl_amd_fp64 : enable\n#endif\n#define EPS_CL 1.2E-7\n#define pi M_PI\n#define GUID_ARG\n"
 #include "CL_code.cl"
 #else
 #define CL_TO_STRING(CL) CL
