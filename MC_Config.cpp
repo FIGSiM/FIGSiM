@@ -10,11 +10,6 @@
 #define IN_MC_CONFIG
 #include "MC_Elements.h"
 
-#ifdef OPENBABEL
-#include <openbabel/mol.h>
-#include <openbabel/obconversion.h>
-#endif
-
 /*!
 Nothing to see here but a default constructor and destructor. Move along.
 Not anymore, look, there's something going on :-) -- AT, Feb 8, 2011
@@ -37,6 +32,41 @@ MC_Config::MC_Config()
 
 MC_Config::~MC_Config()
 {
+}
+
+inline char* ReadFile(string filename)
+{
+#if DEBUG_LEVEL>3
+	cout << "*** " << __FUNCTION__ << " *** (" << __FILE__ << ": " << __LINE__ << ")\n";
+#endif
+	unsigned int size;
+	ifstream file(filename.c_str(),ifstream::in);
+	if (file.fail()==true){
+		cout << "Could not open file \"" << filename << "\".\n";
+		exit(1);
+	}
+	// Get file size
+	file.seekg(0,ifstream::end);
+	size=file.tellg();
+	file.seekg(0);
+	// Sanity checks
+	if (size==0){
+		cout << "File \"" << filename << "\" is empty.\n";
+		exit(1);
+	}
+	if (size>MAXCONFSIZE){ // config files should not be bigger than MAXCONFSIZE/(1024*1024) MB
+		cout << "File \"" << filename << "\" is too big (>" << MAXCONFSIZE/(1024*1024) << " MB).\n";
+		exit(1);
+	}
+	// Read content
+	char* content = new char[size+1];
+	file.read(content,size);
+	content[size]='\0';
+	file.close();
+#if DEBUG_LEVEL>3
+	cout << "*** " << __FUNCTION__ << " *** (" << __FILE__ << ": " << __LINE__ << ")\n";
+#endif
+	return content;
 }
 
 /*!
@@ -1188,7 +1218,42 @@ void MC_Config::LoadSimParams(char* conf)
 	SetParam(parameters.T,"T",conf,298.0);
 	SetParam(parameters.epsilon,"epsilon",conf,1.0);
 	SetParam(parameters.n2,"n2",conf,1.0);
-	SetParam(parameters.boxlength,"boxlength",conf);
+	SetParam(parameters.UseMap,"UseMap",conf,"");
+	if(parameters.UseMap.compare("") != 0){
+		cout << "-> Using Map for setting simulation parameters:\n";
+		parameters.NpT=false;
+		cout << "\tNVT type ensemble\n";
+		char* content = ReadFile(parameters.configdir+parameters.UseMap+".maps.xyz");
+		char* pos=content;
+		char* end=content+strlen(content);
+		double coords[6];
+		unsigned int count=0;
+		while((*pos==' ') || (*pos=='\t') || (*pos=='\n')) pos++; // go to the first entry that's not whitespace/newline
+		while((pos<end) && (pos!=NULL) && (count<6))
+		{
+			string number="";
+			while((*pos!=' ') && (*pos!='\t') && (*pos!='\n')){ // go to the next entry while copying number
+				number=number+*pos;
+				pos++;
+			}
+			coords[count]=atof(number.c_str());
+			while((*pos==' ') || (*pos=='\t') || (*pos=='\n')) pos++; // go to the next entry that's not whitespace/newline
+			count++;
+		}
+		Vec3 size, center;
+		size.vec[0] = coords[1]-coords[0];
+		size.vec[1] = coords[3]-coords[2];
+		size.vec[2] = coords[5]-coords[4];
+		center.vec[0] = coords[0] + size.vec[0]/2.0;
+		center.vec[1] = coords[2] + size.vec[1]/2.0;
+		center.vec[2] = coords[4] + size.vec[2]/2.0;
+		cout << "\tSize of simulation box: " << size.V3Str(',') << " Angström\n";
+		parameters.boxlength[0] = size.vec[0];
+		parameters.boxlength[1] = size.vec[1];
+		parameters.boxlength[2] = size.vec[2];
+		cout << "\tCenter of box: " << center.V3Str(',') << " Angström\n";
+	} else
+		SetParam(parameters.boxlength,"boxlength",conf);
 	parameters.inv_boxlength[0]=1.0/parameters.boxlength[0]; parameters.inv_boxlength[1]=1.0/parameters.boxlength[1]; parameters.inv_boxlength[2]=1.0/parameters.boxlength[2];
 	SetParam(parameters.auto_volume,"auto_volume",conf,true);
 	SetParam(parameters.maxtrans,"maxtrans",conf);
@@ -3344,7 +3409,7 @@ char* MC_Config::Mol2Convert(char* content, char* conf, string groupname)
 	return result;
 }
 
-char* MC_Config::PDBConvert(char* content, char* conf, string groupname)
+char* MC_Config::OpenBabelConvert(char* content, char* conf, string groupname, string extension)
 {
 #if DEBUG_LEVEL>3
 	cout << "*** " << __FUNCTION__ << " *** (" << __FILE__ << ": " << __LINE__ << ")\n";
@@ -3354,7 +3419,7 @@ char* MC_Config::PDBConvert(char* content, char* conf, string groupname)
 	cout << "-> Openbabel you need, young padawan. Feature you are looking for requiring it is.\n";
 	exit(42);
 #else
-	string conversion="[PDB conversion]\n";
+	string conversion="["+extension+" conversion]\n";
 	string elements="elements = ";
 	string charges="import_charges = {";
 	string item;
@@ -3362,7 +3427,8 @@ char* MC_Config::PDBConvert(char* content, char* conf, string groupname)
 	stringstream mol2out;
 	
 	OpenBabel::OBConversion conv(&input,&mol2out);
-	if(conv.SetInAndOutFormats("PDB","MOL2")){
+	if(conv.SetInAndOutFormats(extension.c_str(),"MOL2")){
+		conv.AddOption("c", OpenBabel::OBConversion::INOPTIONS);
 		OpenBabel::OBMol mol;
 		if(conv.Read(&mol))
 		{
@@ -3387,40 +3453,11 @@ char* MC_Config::PDBConvert(char* content, char* conf, string groupname)
 	return result;
 }
 
-inline char* ReadFile(string filename)
+char* MC_Config::PDBConvert(char* content, char* conf, string groupname)
 {
-#if DEBUG_LEVEL>3
-	cout << "*** " << __FUNCTION__ << " *** (" << __FILE__ << ": " << __LINE__ << ")\n";
-#endif
-	unsigned int size;
-	ifstream file(filename.c_str(),ifstream::in);
-	if (file.fail()==true){
-		cout << "Could not open file \"" << filename << "\".\n";
-		exit(1);
-	}
-	// Get file size
-	file.seekg(0,ifstream::end);
-	size=file.tellg();
-	file.seekg(0);
-	// Sanity checks
-	if (size==0){
-		cout << "File \"" << filename << "\" is empty.\n";
-		exit(1);
-	}
-	if (size>MAXCONFSIZE){ // config files should not be bigger than MAXCONFSIZE/(1024*1024) MB
-		cout << "File \"" << filename << "\" is too big (>" << MAXCONFSIZE/(1024*1024) << " MB).\n";
-		exit(1);
-	}
-	// Read content
-	char* content = new char[size+1];
-	file.read(content,size);
-	content[size]='\0';
-	file.close();
-#if DEBUG_LEVEL>3
-	cout << "*** " << __FUNCTION__ << " *** (" << __FILE__ << ": " << __LINE__ << ")\n";
-#endif
-	return content;
+	return OpenBabelConvert(content,conf,groupname,"PDB");
 }
+
 
 void MC_Config::GetSpecialDistances(double* special, int nr)
 {
@@ -3509,6 +3546,21 @@ bool MC_Config::LoadGroup(char* conf, int nr, bool rerun)
 				cout << content << "<- EOC.\n";
 #endif
 			}
+#ifdef OPENBABEL
+			else{
+				SetParam(filename,"structure",conf,""); // get filename from configuration file, mol2 format first (default is no filename)
+				if(filename!=""){
+					fileimport=true;
+#if DEBUG_LEVEL>0
+					cout << "-> Reading group elements, positions, and connectivity from file <" << filename << "> using OpenBabel.\n";
+#endif
+					content = OpenBabelConvert(ReadFile(parameters.configdir+filename),conf,group->Type->name,filename.substr(filename.find_last_of(".") + 1));
+#if DEBUG_LEVEL>2
+					cout << content << "<- EOC.\n";
+#endif
+				}
+			}
+#endif // OPENBABEL
 		}
 	}
 	string element_list, item;

@@ -151,7 +151,9 @@ int main(int argc, char* argv[])
 						}
 						Element* element=&configuration->group_elements[group->elements[i-current_group_start]];
 						atom_counter++;
-						atoms+="\t"+int2str(atom_counter)+"\t"+clean_numbers(name)+"\t"+elements[i].position.V3Str('\t')+"\t"+name+"\t"+int2str(group_count)+"\t"+group->Type->name+"\t"+double2str(element_type->q[0]/e_in_esu)+"\n";
+						double qel=0.0;
+						if(element->MyType->nr_charges>0) qel=element->MyType->q[0]/e_in_esu;
+						atoms+="\t"+int2str(atom_counter)+"\t"+clean_numbers(name)+"\t"+elements[i].position.V3Str('\t')+"\t"+name+"\t"+int2str(group_count)+"\t"+group->Type->name+"\t"+double2str(qel)+"\n";
 						// add bonds from this particular molecule (if there are any)
 						for(unsigned int j=0; j<element->nr_interactions; j++){
 							if(element->interactions[j].partner>i-current_group_start){ // only record links we haven't recorded yet

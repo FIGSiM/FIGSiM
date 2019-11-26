@@ -17,6 +17,11 @@
 #ifndef INCLUDED_MC_CONFIG
 #define INCLUDED_MC_CONFIG
 
+#ifdef OPENBABEL
+#include <openbabel/mol.h>
+#include <openbabel/obconversion.h>
+#endif
+
 #ifndef INCLUDED_CONFIG
 #include "Config.h"
 #endif
@@ -73,6 +78,7 @@ typedef struct _Config_Data{
 	//Batch job data
 	int runid;	///< ID number of current simulation
 	string fileout; ///< Root of name for output file
+	string UseMap; ///< Root of name for output file
 	
 	// Element type related constants
 	unsigned int num_element_types;	///< number of element types
@@ -315,6 +321,7 @@ protected:
 	void AssignFixedElements(Element_Group* group);
 	
 	char* Mol2Convert(char* content, char* conf, string groupname);
+	char* OpenBabelConvert(char* content, char* conf, string groupname, string extension);
 	char* PDBConvert(char* content, char* conf, string groupname);
 	void GetSpecialDistances(double* special, int nr);
 	
