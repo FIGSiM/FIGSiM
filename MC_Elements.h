@@ -65,6 +65,7 @@ typedef struct _Element_Group_Type{
 	bool visual_PBCs;
 	bool label_elements;
 	double transparency;
+	double scale_visual_vdw;
 	
 	double* overlaps;
 	double adjust_overlap; // constant to adjust half overlap used
@@ -232,6 +233,7 @@ typedef struct _Element_Type{
 // Visualizer properties
 	Vec3 color; ///< color of element in RGB space
 	double transparency; ///< transparency of element (0 (opaque) - 1 (completely transparent))
+	double scale_visual_vdw;
 	bool label_elements;
 	bool texture_is_dipole;
 	string texture; ///< texture file name (leave empty for no texture)

@@ -3077,6 +3077,7 @@ void MC_Config::LoadElementTypes(char* conf, int nr, bool load_charges)
 		
 		SetParam(parameters.element_types[nr]->color.vec,"color",conf,Vec3(1.0)); // default color is white
 		SetParam(parameters.element_types[nr]->transparency,"transparency",conf,0.0); // default is no transparency
+		SetParam(parameters.element_types[nr]->scale_visual_vdw,"scale_visual_vdw",conf,1.0); // default is no scaling of vdW spheres
 		SetParam(parameters.element_types[nr]->label_elements,"label_elements",conf,true); // default is label elements when transparent
 		SetParam(parameters.element_types[nr]->texture,"texture",conf,""); // no texture by default
 		SetParam(parameters.element_types[nr]->texture_is_dipole,"texture_is_dipole",conf,true); // texture is treated to point in dipole direction
@@ -3100,6 +3101,7 @@ void MC_Config::LoadElementTypes(char* conf, int nr, bool load_charges)
 		SetParam(parameters.element_types[nr]->calculate_order,"calculate_order",conf,parameters.element_types[parameters.element_types[nr]->archetype]->calculate_order);
 		SetParam(parameters.element_types[nr]->color.vec,"color",conf,parameters.element_types[parameters.element_types[nr]->archetype]->color);
 		SetParam(parameters.element_types[nr]->transparency,"transparency",conf,parameters.element_types[parameters.element_types[nr]->archetype]->transparency);
+		SetParam(parameters.element_types[nr]->scale_visual_vdw,"scale_visual_vdw",conf,parameters.element_types[parameters.element_types[nr]->archetype]->scale_visual_vdw);
 		SetParam(parameters.element_types[nr]->texture,"texture",conf,parameters.element_types[parameters.element_types[nr]->archetype]->texture);
 		SetParam(parameters.element_types[nr]->texture_is_dipole,"texture_is_dipole",conf,parameters.element_types[parameters.element_types[nr]->archetype]->texture_is_dipole);
 	}
@@ -3512,6 +3514,7 @@ bool MC_Config::LoadGroup(char* conf, int nr, bool rerun)
 		SetParam(group->Type->add_start_LOD,"add_start_LOD",conf,true);
 		SetParam(group->Type->visual_PBCs,"visual_PBCs",conf,true);
 		SetParam(group->Type->transparency,"transparency",conf,-1.0); // default is no special group transparency
+		SetParam(group->Type->scale_visual_vdw,"scale_visual_vdw",conf,1.0); // default is no group vdW sphere scaling
 		SetParam(group->Type->show_just_dipoles,"show_just_dipoles",conf,false);
 		SetParam(group->Type->density,"density",conf,0.0); // default is unknown density
 		SetParam(group->Type->label_elements,"label_elements",conf,true); // default is label elements when transparent
