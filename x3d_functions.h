@@ -379,7 +379,10 @@ inline void define_element(ofstream &vizout, Element_Type* type, Element_Group* 
 			if(type->texture!="") vizout << pretabs << "\t\t\t\t\t\t\t<ImageTexture url='\"" << type->texture << "\"'/>\n";
 		}
 		vizout << pretabs << "\t\t\t\t\t\t</Appearance>\n";
-		vizout << pretabs << "\t\t\t\t\t\t<Sphere radius='" << type->scale_visual_vdw << "'/>\n";
+		if(!group)
+			vizout << pretabs << "\t\t\t\t\t\t<Sphere radius='" << type->scale_visual_vdw << "'/>\n";
+		else
+			vizout << pretabs << "\t\t\t\t\t\t<Sphere radius='" << group->Type->scale_visual_vdw << "'/>\n";
 		vizout << pretabs << "\t\t\t\t\t</Shape>\n";
 		vizout << pretabs << "\t\t\t\t</Transform>\n";
 		bool show_labels=((type->label_elements) && (type->transparency>0.0));
